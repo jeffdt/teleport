@@ -126,7 +126,13 @@ fn cmd_pick(config: &Config) {
     cmd_teleport(config, &name);
 }
 
+const RESERVED_NAMES: &[&str] = &["add", "rm", "ls", "edit", "help", "completions"];
+
 fn cmd_add(config: &mut Config, name: String, abs: bool) {
+    if RESERVED_NAMES.contains(&name.as_str()) {
+        eprintln!("'{}' is a reserved command name", name);
+        process::exit(1);
+    }
     if config.portals.contains_key(&name) || config.tunnels.contains_key(&name) {
         eprintln!("'{}' already exists. Remove it first with 'tp rm {}'.", name, name);
         process::exit(1);
