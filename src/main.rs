@@ -1,4 +1,5 @@
 mod config;
+mod fzf;
 mod resolve;
 
 fn main() {
