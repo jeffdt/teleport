@@ -12,7 +12,7 @@ tp() {
   fi
 
   local result=$(warp-core "${args[@]}")
-  local status=$?
+  local rc=$?
 
   case "$result" in
     cd:*)
@@ -22,7 +22,7 @@ tp() {
     *) [[ -n "$result" ]] && echo "$result" ;;
   esac
 
-  return $status
+  return $rc
 }
 
 _tp() {
