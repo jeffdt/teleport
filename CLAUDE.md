@@ -44,7 +44,3 @@ cargo build                    # build
 cargo install --path .         # install to ~/.cargo/bin/
 cp shell/tp.zsh ~/shell/common/tp.zsh  # update shell wrapper
 ```
-
-## Git identity
-
-This is a personal project. Commits use the local git config identity, not the global one. Check `git config user.name` before committing.
