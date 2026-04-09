@@ -1,4 +1,5 @@
 mod config;
+mod resolve;
 
 fn main() {
     let cfg = config::Config::load();
