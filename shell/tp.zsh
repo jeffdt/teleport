@@ -24,3 +24,12 @@ tp() {
 
   return $status
 }
+
+_tp() {
+  local -a names
+  if [[ -f ~/.config/tp/portals.toml ]]; then
+    names=($(warp-core ls 2>/dev/null | awk '{print $1}'))
+  fi
+  _describe 'portal/tunnel' names
+}
+compdef _tp tp

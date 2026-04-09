@@ -4,7 +4,8 @@ mod resolve;
 
 use std::process;
 
-use clap::Parser;
+use clap::{CommandFactory, Parser};
+use clap_complete::{generate, Shell};
 
 use config::Config;
 use resolve::{
@@ -39,6 +40,11 @@ enum Commands {
     },
     /// List all portals and tunnels
     Ls,
+    /// Generate shell completions (hidden)
+    #[command(hide = true)]
+    Completions {
+        shell: Shell,
+    },
 }
 
 fn cmd_teleport(config: &Config, name: &str) {
@@ -171,6 +177,10 @@ fn main() {
         Some(Commands::Add { name, abs }) => cmd_add(&mut config, name, abs),
         Some(Commands::Rm { name }) => cmd_rm(&mut config, name),
         Some(Commands::Ls) => cmd_ls(&config),
+        Some(Commands::Completions { shell }) => {
+            let mut cmd = Cli::command();
+            generate(shell, &mut cmd, "warp-core", &mut std::io::stdout());
+        }
         None => {
             if let Some(name) = cli.name {
                 cmd_teleport(&config, &name);
