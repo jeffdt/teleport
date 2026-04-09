@@ -47,4 +47,4 @@ cp shell/tp.zsh ~/shell/common/tp.zsh  # update shell wrapper
 
 ## Git identity
 
-This is a personal project. Local git config uses `jeffdt` / `jeffdt@gmail.com` with the `github-personal` SSH host alias. Do not commit with work identity.
+This is a personal project. Commits use the local git config identity, not the global one. Check `git config user.name` before committing.
