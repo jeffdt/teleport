@@ -61,7 +61,7 @@ Stored at `~/.config/tp/portals.toml`:
 ```toml
 [portals]
 notes = "~/notes"
-dotfiles = "~/dotfiles"
+shell = "~/shell"
 
 [tunnels.api]
 repo = "~/projects/my-app"
