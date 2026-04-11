@@ -14,7 +14,7 @@ use resolve::{
 };
 
 #[derive(Parser)]
-#[command(name = "warp-core", about = "Engine for tp (teleport)")]
+#[command(name = "warp-core", version, about = "Engine for tp (teleport)")]
 struct Cli {
     #[command(subcommand)]
     command: Option<Commands>,
