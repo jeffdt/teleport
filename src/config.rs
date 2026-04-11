@@ -3,18 +3,10 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::PathBuf;
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct Tunnel {
-    pub repo: String,
-    pub path: String,
-}
-
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct Config {
     #[serde(default)]
     pub portals: BTreeMap<String, String>,
-    #[serde(default)]
-    pub tunnels: BTreeMap<String, Tunnel>,
 }
 
 impl Config {
@@ -48,14 +40,7 @@ impl Config {
         self.portals.insert(name, path);
     }
 
-    pub fn add_tunnel(&mut self, name: String, repo: String, path: String) {
-        self.tunnels.insert(name, Tunnel { repo, path });
-    }
-
     pub fn remove(&mut self, name: &str) -> bool {
-        if self.portals.remove(name).is_some() {
-            return true;
-        }
-        self.tunnels.remove(name).is_some()
+        self.portals.remove(name).is_some()
     }
 }

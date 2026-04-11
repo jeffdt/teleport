@@ -1,3 +1,10 @@
+# Record directory visits for frecency ranking
+_tp_log() {
+  warp-core log "$PWD" &!
+}
+autoload -Uz add-zsh-hook
+add-zsh-hook chpwd _tp_log
+
 tp() {
   if [[ "$1" == "edit" ]]; then
     ${EDITOR:-vim} ~/.config/tp/portals.toml
@@ -5,11 +12,14 @@ tp() {
   fi
 
   local claude=false
-  local args=("$@")
-  if [[ "$1" == "-c" ]]; then
-    claude=true
-    args=("${@:2}")
-  fi
+  local args=()
+  for arg in "$@"; do
+    if [[ "$arg" == "-c" || "$arg" == "--claude" ]]; then
+      claude=true
+    else
+      args+=("$arg")
+    fi
+  done
 
   local result=$(warp-core "${args[@]}")
   local rc=$?
@@ -30,6 +40,6 @@ _tp() {
   if [[ -f ~/.config/tp/portals.toml ]]; then
     names=($(warp-core ls 2>/dev/null | awk '{print $1}'))
   fi
-  _describe 'portal/tunnel' names
+  _describe 'portal' names
 }
 compdef _tp tp

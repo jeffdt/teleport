@@ -1,6 +1,6 @@
 # tp (teleport)
 
-Directory teleportation tool with two bookmark types: **portals** (absolute paths) and **tunnels** (git repo-relative paths that resolve through worktrees).
+Directory teleportation tool with worktree-aware bookmarks called **portals**.
 
 ## Architecture
 
@@ -11,8 +11,8 @@ Two components:
 
 ## Key concepts
 
-- **Portal**: absolute path bookmark. Stored as `name = "~/path"` under `[portals]` in config.
-- **Tunnel**: repo-relative bookmark. Stored with `repo` (absolute path to main worktree) and `path` (relative subdir) under `[tunnels.<name>]`. Resolves through any worktree of that repo via `git worktree list`.
+- **Portal**: a named bookmark to any directory. Stored as `name = "~/path"` under `[portals]` in config. If the path is inside a git repo with multiple worktrees, tp automatically shows a picker to choose which worktree to resolve through.
+- **Worktree awareness**: at teleport time, tp detects if a portal's path is inside a git repo. If the repo has multiple worktrees, a picker appears with `⌂` (main worktree) and `*` (current worktree) indicators. The current worktree is pre-selected. Use `-m` to skip the picker and go straight to the main worktree.
 - **Config**: TOML at `~/.config/tp/portals.toml`. Uses `dirs::home_dir().join(".config")` (XDG style), not `dirs::config_dir()` (which returns `~/Library/Application Support` on macOS).
 
 ## Source layout
@@ -20,21 +20,22 @@ Two components:
 | File | Responsibility |
 |---|---|
 | `src/main.rs` | CLI definition (clap), subcommand dispatch |
-| `src/config.rs` | TOML types (Config, Tunnel), load/save, add/remove |
-| `src/resolve.rs` | Tilde expansion, git worktree list, tunnel resolution, detect_add_context |
+| `src/config.rs` | TOML types (Config), load/save, add/remove |
+| `src/resolve.rs` | Tilde expansion, git worktree list, portal worktree context, detect_add_context |
 | `src/fzf.rs` | Format table rows, spawn fzf subprocess, parse selection |
+| `src/history.rs` | Frecency tracking with SQLite (visits, scoring, substring search) |
 | `shell/tp.zsh` | Shell wrapper + zsh tab completion |
 
 ## Commands
 
-- `tp <name>` teleport to portal or tunnel
+- `tp <name>` teleport to portal (with worktree picker if multiple worktrees)
+- `tp -m <name>` teleport to main worktree (skip picker)
 - `tp` (no args) fzf picker
-- `tp add <name>` create from cwd (auto-detects portal vs tunnel)
-- `tp add --abs <name>` force absolute portal
+- `tp add <name>` create portal from cwd
 - `tp rm <name>` remove
 - `tp ls` list all
 - `tp edit` open config in $EDITOR
-- `tp -c <name>` teleport then open Claude
+- `tp -c <name>` teleport then open Claude (composes with -m)
 
 ## Development
 

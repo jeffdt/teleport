@@ -2,8 +2,6 @@ use std::env;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use crate::config::Tunnel;
-
 /// Expand ~ to the user's home directory.
 pub fn expand_tilde(path: &str) -> PathBuf {
     if let Some(rest) = path.strip_prefix("~/") {
@@ -25,6 +23,34 @@ pub fn collapse_tilde(path: &Path) -> String {
         }
     }
     path.display().to_string()
+}
+
+/// Get the git toplevel for a specific directory.
+pub fn git_toplevel_for(dir: &Path) -> Option<PathBuf> {
+    let output = Command::new("git")
+        .args(["-C", &dir.display().to_string(), "rev-parse", "--show-toplevel"])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let path = String::from_utf8(output.stdout).ok()?.trim().to_string();
+    Some(PathBuf::from(path))
+}
+
+/// Get the path relative to the repo root for a specific directory.
+/// Uses `git rev-parse --show-prefix` which handles worktree indirection correctly.
+pub fn git_show_prefix(dir: &Path) -> Option<String> {
+    let output = Command::new("git")
+        .args(["-C", &dir.display().to_string(), "rev-parse", "--show-prefix"])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let prefix = String::from_utf8(output.stdout).ok()?.trim().to_string();
+    // git returns trailing slash for subdirs, strip it
+    Some(prefix.trim_end_matches('/').to_string())
 }
 
 /// Get the git toplevel for the current directory, if any.
@@ -80,52 +106,154 @@ pub fn resolve_portal(path: &str) -> PathBuf {
     expand_tilde(path)
 }
 
-/// Build the context needed to resolve a tunnel.
-/// Returns: (list of worktree roots, current worktree if inside one).
-pub fn tunnel_worktree_context(tunnel: &Tunnel) -> (Vec<PathBuf>, Option<PathBuf>) {
-    let repo_path = expand_tilde(&tunnel.repo);
-    let worktrees = git_worktree_list(&repo_path);
-    let current = current_worktree_for_repo(&repo_path);
-    (worktrees, current)
+/// Canonicalize a path, resolving symlinks. Falls back to the input path if canonicalization fails.
+pub fn canonicalize_path(path: &Path) -> PathBuf {
+    std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
 }
 
-/// Determine what kind of entry `tp add` should create from the current directory.
-pub enum AddContext {
-    Portal(String),
-    Tunnel { repo: String, path: String },
+/// Context for resolving a portal that lives inside a git repo.
+pub struct PortalContext {
+    pub worktrees: Vec<PathBuf>,
+    pub main_worktree: PathBuf,
+    pub current_worktree: Option<PathBuf>,
+    pub relative_path: String,
 }
 
-pub fn detect_add_context(force_abs: bool) -> AddContext {
+/// Detect if a portal path is inside a git repo and gather worktree context.
+/// Returns None if the path is not inside a git repo.
+pub fn portal_worktree_context(portal_path: &str) -> Option<PortalContext> {
+    let expanded = expand_tilde(portal_path);
+
+    // Find the repo root for this path
+    let toplevel = git_toplevel_for(&expanded)?;
+
+    // Relative path within the repo (empty string if at repo root).
+    // Uses git show-prefix to handle worktree indirection correctly.
+    let relative_path = git_show_prefix(&expanded).unwrap_or_default();
+
+    // Get worktree list from this repo (works from any worktree)
+    let worktrees = git_worktree_list(&toplevel);
+    let main_wt = worktrees.first().cloned().unwrap_or_else(|| toplevel.clone());
+
+    // Detect current worktree using already-fetched list (avoids a second git subprocess)
+    let current = git_toplevel().and_then(|cwd_toplevel| {
+        worktrees.iter().find(|wt| **wt == cwd_toplevel).cloned()
+    });
+
+    Some(PortalContext {
+        worktrees,
+        main_worktree: main_wt,
+        current_worktree: current,
+        relative_path,
+    })
+}
+
+/// A worktree with display metadata for the picker.
+pub struct WorktreeInfo {
+    pub path: PathBuf,
+    pub is_main: bool,
+    pub is_current: bool,
+}
+
+/// Sort worktrees for the picker: current first, then main, then rest in creation order.
+pub fn sorted_worktrees(
+    worktrees: &[PathBuf],
+    main_worktree: &Path,
+    current_worktree: Option<&Path>,
+) -> Vec<WorktreeInfo> {
+    let mut result: Vec<WorktreeInfo> = Vec::new();
+
+    // Current worktree first (if we're inside one)
+    if let Some(current) = current_worktree {
+        if worktrees.iter().any(|wt| wt.as_path() == current) {
+            result.push(WorktreeInfo {
+                path: current.to_path_buf(),
+                is_main: current == main_worktree,
+                is_current: true,
+            });
+        }
+    }
+
+    // Main worktree (if not already added as current)
+    if !result.iter().any(|info| info.path == main_worktree) {
+        result.push(WorktreeInfo {
+            path: main_worktree.to_path_buf(),
+            is_main: true,
+            is_current: false,
+        });
+    }
+
+    // Remaining worktrees in creation order
+    for wt in worktrees {
+        if !result.iter().any(|info| info.path == *wt) {
+            result.push(WorktreeInfo {
+                path: wt.clone(),
+                is_main: false,
+                is_current: false,
+            });
+        }
+    }
+
+    result
+}
+
+/// Determine the portal path from the current directory.
+pub fn detect_add_context() -> String {
     let cwd = env::current_dir().expect("could not determine current directory");
-    let cwd_str = collapse_tilde(&cwd);
+    collapse_tilde(&cwd)
+}
 
-    if force_abs {
-        return AddContext::Portal(cwd_str);
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sorted_worktrees_current_first() {
+        let main = PathBuf::from("/repo");
+        let wt_a = PathBuf::from("/repo.wt-a");
+        let wt_b = PathBuf::from("/repo.wt-b");
+        let worktrees = vec![main.clone(), wt_a.clone(), wt_b.clone()];
+
+        let sorted = sorted_worktrees(&worktrees, &main, Some(&wt_a));
+
+        assert_eq!(sorted.len(), 3);
+        assert_eq!(sorted[0].path, wt_a);
+        assert!(sorted[0].is_current);
+        assert!(!sorted[0].is_main);
+        assert_eq!(sorted[1].path, main);
+        assert!(sorted[1].is_main);
+        assert!(!sorted[1].is_current);
+        assert_eq!(sorted[2].path, wt_b);
+        assert!(!sorted[2].is_main);
+        assert!(!sorted[2].is_current);
     }
 
-    let toplevel = match git_toplevel() {
-        Some(t) => t,
-        None => return AddContext::Portal(cwd_str),
-    };
+    #[test]
+    fn sorted_worktrees_current_is_main() {
+        let main = PathBuf::from("/repo");
+        let wt_a = PathBuf::from("/repo.wt-a");
+        let worktrees = vec![main.clone(), wt_a.clone()];
 
-    // At repo root: portal
-    if cwd == toplevel {
-        return AddContext::Portal(cwd_str);
+        let sorted = sorted_worktrees(&worktrees, &main, Some(&main));
+
+        assert_eq!(sorted.len(), 2);
+        assert_eq!(sorted[0].path, main);
+        assert!(sorted[0].is_current);
+        assert!(sorted[0].is_main);
+        assert_eq!(sorted[1].path, wt_a);
     }
 
-    // In a subdir: tunnel
-    let rel_path = cwd
-        .strip_prefix(&toplevel)
-        .expect("cwd should be under toplevel")
-        .display()
-        .to_string();
+    #[test]
+    fn sorted_worktrees_no_current() {
+        let main = PathBuf::from("/repo");
+        let wt_a = PathBuf::from("/repo.wt-a");
+        let worktrees = vec![main.clone(), wt_a.clone()];
 
-    // Find the main worktree to store as the repo path
-    let main_wt = main_worktree(&toplevel);
-    let repo_str = collapse_tilde(&main_wt);
+        let sorted = sorted_worktrees(&worktrees, &main, None);
 
-    AddContext::Tunnel {
-        repo: repo_str,
-        path: rel_path,
+        assert_eq!(sorted.len(), 2);
+        assert_eq!(sorted[0].path, main);
+        assert!(sorted[0].is_main);
+        assert!(!sorted[0].is_current);
     }
 }
