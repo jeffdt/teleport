@@ -2,7 +2,7 @@
 
 > Instant terminal teleportation. Bookmarks that follow you across git worktrees.
 
-[![License: Unlicense](https://img.shields.io/badge/license-Unlicense-blue.svg)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Built with Rust](https://img.shields.io/badge/built%20with-Rust-orange.svg)](https://www.rust-lang.org)
 
 ---
@@ -77,4 +77,4 @@ path = "python/klaviyo/executive_business_report/insights_service"
 
 ## License
 
-Public domain — see [LICENSE](LICENSE).
+MIT — see [LICENSE](LICENSE).
