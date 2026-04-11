@@ -6,8 +6,8 @@ A directory teleportation tool for the terminal. Navigate to bookmarked director
 
 `tp` manages two kinds of bookmarks:
 
-- **Portals**: fixed destinations (absolute paths). `tp notes` always takes you to `~/notes`.
-- **Tunnels**: repo-relative destinations that resolve through git worktrees. `tp api` takes you to `src/api` inside whichever worktree of your project repo you're currently in (or lets you pick one if you're not in any).
+- **Portals**: fixed destinations (absolute paths). `tp notes` always takes you to `~/Documents/notes/personal`.
+- **Tunnels**: repo-relative destinations that resolve through git worktrees. `tp ui` takes you to `packages/web/src/components/ui` inside whichever worktree of your project repo you're currently in (or lets you pick one if you're not in any).
 
 ## Install
 
@@ -28,7 +28,7 @@ cp shell/tp.zsh ~/your/shell/config/tp.zsh
 
 ```bash
 tp notes        # teleport to a portal
-tp api          # teleport to a tunnel (picks worktree if needed)
+tp ui           # teleport to a tunnel (picks worktree if needed)
 tp              # fzf picker over all bookmarks
 tp -c notes     # teleport then open Claude
 tp add myplace  # bookmark current directory (auto-detects portal vs tunnel)
@@ -60,12 +60,12 @@ Stored at `~/.config/tp/portals.toml`:
 
 ```toml
 [portals]
-notes = "~/notes"
+notes = "~/Documents/notes/personal"
 shell = "~/shell"
 
-[tunnels.api]
+[tunnels.ui]
 repo = "~/projects/my-app"
-path = "src/api"
+path = "packages/web/src/components/ui"
 ```
 
 ## How it works
