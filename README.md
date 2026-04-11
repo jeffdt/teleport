@@ -6,8 +6,8 @@ A directory teleportation tool for the terminal. Navigate to bookmarked director
 
 `tp` manages two kinds of bookmarks:
 
-- **Portals**: fixed destinations (absolute paths). `tp app` always takes you to `~/r/app`.
-- **Tunnels**: repo-relative destinations that resolve through git worktrees. `tp is` takes you to `python/klaviyo/.../insights_service` inside whichever worktree of k-repo you're currently in (or lets you pick one if you're not in any).
+- **Portals**: fixed destinations (absolute paths). `tp notes` always takes you to `~/notes`.
+- **Tunnels**: repo-relative destinations that resolve through git worktrees. `tp api` takes you to `src/api` inside whichever worktree of your project repo you're currently in (or lets you pick one if you're not in any).
 
 ## Install
 
@@ -27,10 +27,10 @@ cp shell/tp.zsh ~/your/shell/config/tp.zsh
 ## Usage
 
 ```bash
-tp app          # teleport to a portal
-tp is           # teleport to a tunnel (picks worktree if needed)
+tp notes        # teleport to a portal
+tp api          # teleport to a tunnel (picks worktree if needed)
 tp              # fzf picker over all bookmarks
-tp -c app       # teleport then open Claude
+tp -c notes     # teleport then open Claude
 tp add myplace  # bookmark current directory (auto-detects portal vs tunnel)
 tp rm myplace   # remove a bookmark
 tp ls           # list all bookmarks
@@ -60,12 +60,12 @@ Stored at `~/.config/tp/portals.toml`:
 
 ```toml
 [portals]
-app = "~/r/app"
-shell = "~/shell"
+notes = "~/notes"
+dotfiles = "~/dotfiles"
 
-[tunnels.is]
-repo = "~/r/k-repo"
-path = "python/klaviyo/executive_business_report/insights_service"
+[tunnels.api]
+repo = "~/projects/my-app"
+path = "src/api"
 ```
 
 ## How it works
