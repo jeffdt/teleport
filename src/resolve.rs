@@ -85,30 +85,9 @@ pub fn git_worktree_list(repo_path: &Path) -> Vec<PathBuf> {
         .collect()
 }
 
-/// Find the main worktree for a repo (first entry from git worktree list).
-pub fn main_worktree(repo_path: &Path) -> PathBuf {
-    git_worktree_list(repo_path)
-        .into_iter()
-        .next()
-        .unwrap_or_else(|| repo_path.to_path_buf())
-}
-
-/// Determine if cwd is inside one of the repo's worktrees.
-/// Returns the matching worktree root if found.
-pub fn current_worktree_for_repo(repo_path: &Path) -> Option<PathBuf> {
-    let toplevel = git_toplevel()?;
-    let worktrees = git_worktree_list(repo_path);
-    worktrees.into_iter().find(|wt| *wt == toplevel)
-}
-
 /// Resolve a portal to an absolute path.
 pub fn resolve_portal(path: &str) -> PathBuf {
     expand_tilde(path)
-}
-
-/// Canonicalize a path, resolving symlinks. Falls back to the input path if canonicalization fails.
-pub fn canonicalize_path(path: &Path) -> PathBuf {
-    std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
 }
 
 /// Context for resolving a portal that lives inside a git repo.
