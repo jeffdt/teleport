@@ -2,94 +2,25 @@ use std::io::Write;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 
-use crate::config::Config;
-use crate::history::FrecencyEntry;
-use crate::resolve::{collapse_tilde, expand_tilde};
+use crate::resolve::collapse_tilde;
 
-/// Format all portals for `tp ls`.
-pub fn format_entries(config: &Config) -> Vec<(String, String)> {
-    let name_width = config
-        .portals
-        .keys()
-        .map(|k| k.len())
-        .max()
-        .unwrap_or(0);
+/// Format portal entries for display. Returns (display_line, portal_name) pairs.
+/// Use `prefix` to distinguish contexts: e.g. `"* "` for picker, `""` for `tp ls`.
+pub fn format_portal_entries(
+    portals: &std::collections::BTreeMap<String, String>,
+    prefix: &str,
+) -> Vec<(String, String)> {
+    let name_width = portals.keys().map(|k| k.len()).max().unwrap_or(0);
 
-    config
-        .portals
-        .iter()
-        .map(|(name, path)| {
-            let display = format!("  {:<width$}  {}", name, path, width = name_width);
-            (display, name.clone())
-        })
-        .collect()
-}
-
-/// Format bookmarks for the fzf picker with star prefix.
-pub fn format_bookmark_entries(config: &Config) -> Vec<(String, String)> {
-    let name_width = config
-        .portals
-        .keys()
-        .map(|k| k.len())
-        .max()
-        .unwrap_or(0);
-
-    config
-        .portals
+    portals
         .iter()
         .map(|(name, path)| {
             let display = format!(
-                "  * {:<width$}  {}",
-                name, path,
+                "  {}{:<width$}  {}",
+                prefix, name, path,
                 width = name_width
             );
             (display, name.clone())
-        })
-        .collect()
-}
-
-/// Reference data for a frecent entry selected from the picker.
-pub struct FrecencyEntryRef {
-    pub path: String,
-    pub repo: Option<String>,
-}
-
-/// Format frecent entries for the fzf picker (no star, with score).
-pub fn format_frecent_entries(
-    entries: &[&FrecencyEntry],
-    name_width: usize,
-) -> Vec<(String, FrecencyEntryRef)> {
-    entries
-        .iter()
-        .map(|entry| {
-            let display_path = match &entry.repo {
-                Some(repo) => {
-                    let repo_basename = expand_tilde(repo)
-                        .file_name()
-                        .unwrap_or_default()
-                        .to_string_lossy()
-                        .to_string();
-                    format!("{} -> {}", repo_basename, entry.path)
-                }
-                None => entry.path.clone(),
-            };
-
-            let label = entry.path.split('/').last().unwrap_or(&entry.path);
-
-            let display = format!(
-                "    {:<width$}           {:<40} {:>5.1}",
-                label,
-                display_path,
-                entry.effective_score,
-                width = name_width,
-            );
-
-            let ref_data = FrecencyEntryRef {
-                path: entry.path.clone(),
-                repo: entry.repo.clone(),
-            };
-
-            (display, ref_data)
         })
         .collect()
 }
@@ -176,47 +107,15 @@ pub fn pick(lines: &[String], prompt: &str) -> Option<usize> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::history::FrecencyEntry;
     use crate::resolve::WorktreeInfo;
 
     #[test]
-    fn frecent_entries_formatted_with_score() {
-        let entries = vec![
-            FrecencyEntry {
-                path: "~/Documents/notes".to_string(),
-                repo: None,
-                effective_score: 3.2,
-            },
-            FrecencyEntry {
-                path: "src/components".to_string(),
-                repo: Some("~/r/app".to_string()),
-                effective_score: 2.8,
-            },
-        ];
-        let entry_refs: Vec<&FrecencyEntry> = entries.iter().collect();
+    fn portal_entries_with_star_prefix() {
+        let portals = [("notes".to_string(), "~/Documents/notes".to_string())]
+            .into_iter()
+            .collect();
 
-        let formatted = format_frecent_entries(&entry_refs, 10);
-        assert_eq!(formatted.len(), 2);
-
-        // Non-repo entry
-        assert!(formatted[0].0.contains("~/Documents/notes"));
-        assert!(formatted[0].0.contains("3.2"));
-        assert!(!formatted[0].0.contains("*"));
-
-        // Repo entry shows repo basename
-        assert!(formatted[1].0.contains("app"));
-        assert!(formatted[1].0.contains("src/components"));
-    }
-
-    #[test]
-    fn bookmark_entries_have_star() {
-        let config = Config {
-            portals: [("notes".to_string(), "~/Documents/notes".to_string())]
-                .into_iter()
-                .collect(),
-        };
-
-        let entries = format_bookmark_entries(&config);
+        let entries = format_portal_entries(&portals, "* ");
         assert_eq!(entries.len(), 1);
         assert!(entries[0].0.contains("*"));
         assert!(entries[0].0.contains("notes"));

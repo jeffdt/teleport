@@ -1,10 +1,3 @@
-# Record directory visits for frecency ranking
-_tp_log() {
-  warp-core log "$PWD" &!
-}
-autoload -Uz add-zsh-hook
-add-zsh-hook chpwd _tp_log
-
 tp() {
   if [[ "$1" == "edit" ]]; then
     ${EDITOR:-vim} ~/.config/tp/portals.toml
