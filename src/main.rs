@@ -88,11 +88,7 @@ fn cmd_teleport(config: &Config, name: &str, main_only: bool) {
                         entries.iter().map(|(d, _)| d.clone()).collect();
 
                     match fzf::pick(&display_lines, "Select worktree:") {
-                        Some(selected) => entries
-                            .iter()
-                            .find(|(d, _)| *d == selected)
-                            .map(|(_, p)| p.clone())
-                            .expect("selected entry not found"),
+                        Some(idx) => entries[idx].1.clone(),
                         None => process::exit(130),
                     }
                 };
@@ -224,15 +220,10 @@ fn cmd_pick(config: &Config) {
         });
     }
 
-    let selected = match fzf::pick(&display_lines, "Teleport:") {
-        Some(s) => s,
+    let idx = match fzf::pick(&display_lines, "Teleport:") {
+        Some(i) => i,
         None => process::exit(130),
     };
-
-    let idx = display_lines
-        .iter()
-        .position(|l| *l == selected)
-        .expect("selected entry not found");
 
     match &line_map[idx] {
         PickerEntry::Bookmark(name) => cmd_teleport(config, name, false),
