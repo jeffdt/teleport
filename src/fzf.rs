@@ -74,7 +74,7 @@ pub fn format_frecent_entries(
                 None => entry.path.clone(),
             };
 
-            let label = entry.path.split('/').last().unwrap_or(&entry.path);
+            let label = entry.path.rsplit('/').next().unwrap_or(&entry.path);
 
             let display = format!(
                 "    {:<width$}           {:<40} {:>5.1}",
