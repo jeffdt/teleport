@@ -12,7 +12,7 @@ Two components:
 ## Key concepts
 
 - **Portal**: a named bookmark to any directory. Stored as `name = "~/path"` under `[portals]` in config. If the path is inside a git repo with multiple worktrees, tp automatically shows a picker to choose which worktree to resolve through.
-- **Worktree awareness**: at teleport time, tp detects if a portal's path is inside a git repo. If the repo has multiple worktrees, a picker appears with `⌂` (main worktree) and `*` (current worktree) indicators. The current worktree is pre-selected. Use `-m` to skip the picker and go straight to the main worktree.
+- **Worktree awareness**: at teleport time, tp detects if a portal's path is inside a git repo. If the repo has multiple worktrees, a top-down fzf picker appears with colored `(current)` and `(main)` labels. The current worktree is pre-selected at the top. Use `-m` to skip the picker and go straight to the main worktree.
 - **Config**: TOML at `~/.config/tp/portals.toml`. Uses `dirs::home_dir().join(".config")` (XDG style), not `dirs::config_dir()` (which returns `~/Library/Application Support` on macOS).
 
 ## Source layout
@@ -22,7 +22,7 @@ Two components:
 | `src/main.rs` | CLI definition (clap), subcommand dispatch |
 | `src/config.rs` | TOML types (Config), load/save, add/remove |
 | `src/resolve.rs` | Tilde expansion, git worktree list, portal worktree context, detect_add_context |
-| `src/fzf.rs` | Format table rows, spawn fzf subprocess, parse selection |
+| `src/fzf.rs` | Format table rows, spawn fzf subprocess (ANSI-aware, index-based matching), parse selection |
 | `src/history.rs` | Frecency tracking with SQLite (visits, scoring, substring search) |
 | `shell/tp.zsh` | Shell wrapper + zsh tab completion |
 
@@ -45,3 +45,7 @@ cargo build                    # build
 cargo install --path .         # install to ~/.cargo/bin/
 cp shell/tp.zsh ~/shell/common/tp.zsh  # update shell wrapper
 ```
+
+## Git workflow
+
+After a PR from the current branch is merged, always fetch and create a new branch from `origin/main` before making further changes. This avoids squash-merge SHA mismatches that pollute the next PR's diff. Stay in the same worktree if convenient, but start a fresh branch from up-to-date main.
