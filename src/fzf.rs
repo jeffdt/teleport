@@ -94,29 +94,51 @@ pub fn format_frecent_entries(
         .collect()
 }
 
-/// Format worktree entries for the picker with main and current indicators.
+/// Format worktree entries for the picker with colored labels.
 /// Returns (display_line, actual_path) pairs.
 pub fn format_worktree_entries(worktrees: &[crate::resolve::WorktreeInfo]) -> Vec<(String, PathBuf)> {
+    const GREEN: &str = "\x1b[32m";
+    const BLUE: &str = "\x1b[34m";
+    const RESET: &str = "\x1b[0m";
+
     worktrees
         .iter()
         .map(|info| {
-            let main_indicator = if info.is_main { "⌂" } else { " " };
-            let current_indicator = if info.is_current { "*" } else { " " };
-            let display = format!(
-                "  {} {}  {}",
-                main_indicator,
-                current_indicator,
-                collapse_tilde(&info.path)
-            );
+            let path_str = collapse_tilde(&info.path);
+            let label = match (info.is_current, info.is_main) {
+                (true, true) => format!("  {GREEN}(current, main){RESET}"),
+                (true, false) => format!("  {GREEN}(current){RESET}"),
+                (false, true) => format!("  {BLUE}(main){RESET}"),
+                (false, false) => String::new(),
+            };
+            let display = format!("  {path_str}{label}");
             (display, info.path.clone())
         })
         .collect()
 }
 
-/// Spawn fzf with the given lines and prompt. Returns the selected line or None.
-pub fn pick(lines: &[String], prompt: &str) -> Option<String> {
+/// Strip ANSI escape codes from a string for comparison.
+fn strip_ansi(s: &str) -> String {
+    let mut result = String::with_capacity(s.len());
+    let mut in_escape = false;
+    for c in s.chars() {
+        if in_escape {
+            if c.is_ascii_alphabetic() {
+                in_escape = false;
+            }
+        } else if c == '\x1b' {
+            in_escape = true;
+        } else {
+            result.push(c);
+        }
+    }
+    result
+}
+
+/// Spawn fzf with the given lines and prompt. Returns the index of the selected line or None.
+pub fn pick(lines: &[String], prompt: &str) -> Option<usize> {
     let fzf = Command::new("fzf")
-        .args(["--height=~50%", "--border", &format!("--prompt={} ", prompt)])
+        .args(["--height=~50%", "--layout=reverse", "--ansi", "--border", &format!("--prompt={} ", prompt)])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::inherit())
@@ -142,12 +164,13 @@ pub fn pick(lines: &[String], prompt: &str) -> Option<String> {
         return None;
     }
 
-    let selected = String::from_utf8(output.stdout).ok()?.trim().to_string();
+    let selected = String::from_utf8(output.stdout).ok()?.trim_end().to_string();
     if selected.is_empty() {
-        None
-    } else {
-        Some(selected)
+        return None;
     }
+
+    let stripped = strip_ansi(&selected);
+    lines.iter().position(|l| strip_ansi(l) == stripped)
 }
 
 #[cfg(test)]
@@ -200,7 +223,7 @@ mod tests {
     }
 
     #[test]
-    fn worktree_entries_show_indicators() {
+    fn worktree_entries_show_labels() {
         let worktrees = vec![
             WorktreeInfo {
                 path: PathBuf::from("/Users/jeff/r/k-repo.wt-auth"),
@@ -222,22 +245,22 @@ mod tests {
         let entries = format_worktree_entries(&worktrees);
         assert_eq!(entries.len(), 3);
 
-        // Current worktree has * indicator
-        assert!(entries[0].0.contains('*'));
-        assert!(!entries[0].0.contains('⌂'));
+        // Current worktree has (current) label
+        assert!(entries[0].0.contains("(current)"));
+        assert!(!entries[0].0.contains("(main)"));
         assert_eq!(entries[0].1, PathBuf::from("/Users/jeff/r/k-repo.wt-auth"));
 
-        // Main worktree has ⌂ indicator
-        assert!(entries[1].0.contains('⌂'));
-        assert!(!entries[1].0.contains('*'));
+        // Main worktree has (main) label
+        assert!(entries[1].0.contains("(main)"));
+        assert!(!entries[1].0.contains("(current)"));
 
-        // Neither
-        assert!(!entries[2].0.contains('⌂'));
-        assert!(!entries[2].0.contains('*'));
+        // Neither has no labels
+        assert!(!entries[2].0.contains("(current)"));
+        assert!(!entries[2].0.contains("(main)"));
     }
 
     #[test]
-    fn worktree_entries_both_indicators() {
+    fn worktree_entries_both_labels() {
         let worktrees = vec![
             WorktreeInfo {
                 path: PathBuf::from("/Users/jeff/r/k-repo"),
@@ -247,7 +270,6 @@ mod tests {
         ];
 
         let entries = format_worktree_entries(&worktrees);
-        assert!(entries[0].0.contains('⌂'));
-        assert!(entries[0].0.contains('*'));
+        assert!(entries[0].0.contains("(current, main)"));
     }
 }
