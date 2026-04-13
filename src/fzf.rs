@@ -92,6 +92,15 @@ fn strip_ansi(s: &str) -> String {
     result
 }
 
+/// Format broken portal entries for prune output. Returns display lines with aligned columns.
+pub fn format_prune_entries(portals: &[(String, String)]) -> Vec<String> {
+    let name_width = portals.iter().map(|(n, _)| n.len()).max().unwrap_or(0);
+    portals
+        .iter()
+        .map(|(name, path)| format!("  {:<width$}  {}", name, path, width = name_width))
+        .collect()
+}
+
 /// Spawn fzf with the given lines and prompt. Returns the index of the selected line or None.
 pub fn pick(lines: &[String], prompt: &str) -> Option<usize> {
     let fzf = Command::new("fzf")
@@ -242,5 +251,27 @@ mod tests {
 
         let entries = format_worktree_entries(&worktrees);
         assert!(entries[0].0.contains("(current, main)"));
+    }
+
+    #[test]
+    fn format_prune_entries_aligns_columns() {
+        let portals = vec![
+            ("short".to_string(), "~/a".to_string()),
+            ("much-longer".to_string(), "~/b".to_string()),
+        ];
+
+        let lines = format_prune_entries(&portals);
+        assert_eq!(lines.len(), 2);
+        // Both paths should start at the same column
+        let pos_a = lines[0].find("~/a").unwrap();
+        let pos_b = lines[1].find("~/b").unwrap();
+        assert_eq!(pos_a, pos_b);
+    }
+
+    #[test]
+    fn format_prune_entries_empty() {
+        let portals: Vec<(String, String)> = vec![];
+        let lines = format_prune_entries(&portals);
+        assert!(lines.is_empty());
     }
 }
