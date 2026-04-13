@@ -45,16 +45,17 @@ struct Cli {
     name: Option<String>,
 }
 
-fn emit_cd_or_exit(name: &str, target: std::path::PathBuf) {
+fn emit_cd_or_exit(name: &str, target: std::path::PathBuf, claude: bool) {
     if !target.exists() {
         eprintln!("Portal '{}' target does not exist: {}", name, target.display());
         process::exit(1);
     }
-    println!("cd:{}", target.display());
+    let prefix = if claude { "cd+c" } else { "cd" };
+    println!("{}:{}", prefix, target.display());
 }
 
 /// Teleport to a known portal by name, handling worktree resolution.
-fn teleport_to_portal(name: &str, path: &str, main_only: bool) {
+fn teleport_to_portal(name: &str, path: &str, main_only: bool, claude: bool) {
     match portal_worktree_context(path) {
         Some(ctx) if ctx.worktrees.len() > 1 => {
             let worktree_root = if main_only {
@@ -80,7 +81,7 @@ fn teleport_to_portal(name: &str, path: &str, main_only: bool) {
             } else {
                 worktree_root.join(&ctx.relative_path)
             };
-            emit_cd_or_exit(name, target);
+            emit_cd_or_exit(name, target, claude);
         }
         Some(ctx) if ctx.worktrees.len() == 1 => {
             let wt = ctx.worktrees.into_iter().next().unwrap();
@@ -89,10 +90,10 @@ fn teleport_to_portal(name: &str, path: &str, main_only: bool) {
             } else {
                 wt.join(&ctx.relative_path)
             };
-            emit_cd_or_exit(name, target);
+            emit_cd_or_exit(name, target, claude);
         }
         _ => {
-            emit_cd_or_exit(name, resolve::resolve_portal(path));
+            emit_cd_or_exit(name, resolve::resolve_portal(path), claude);
         }
     }
 }
@@ -110,9 +111,9 @@ fn find_matching_portals<'a>(config: &'a Config, query: &str) -> Vec<(&'a String
         .collect()
 }
 
-fn cmd_teleport(config: &Config, query: &str, main_only: bool, _claude: bool) {
+fn cmd_teleport(config: &Config, query: &str, main_only: bool, claude: bool) {
     if let Some(path) = config.portals.get(query) {
-        teleport_to_portal(query, path, main_only);
+        teleport_to_portal(query, path, main_only, claude);
         return;
     }
 
@@ -125,7 +126,7 @@ fn cmd_teleport(config: &Config, query: &str, main_only: bool, _claude: bool) {
         }
         1 => {
             let (name, path) = matches[0];
-            teleport_to_portal(name, path, main_only);
+            teleport_to_portal(name, path, main_only, claude);
         }
         _ => {
             let filtered: std::collections::BTreeMap<String, String> = matches
@@ -139,7 +140,7 @@ fn cmd_teleport(config: &Config, query: &str, main_only: bool, _claude: bool) {
                 Some(idx) => {
                     let name = &entries[idx].1;
                     let path = config.portals.get(name).unwrap();
-                    teleport_to_portal(name, path, main_only);
+                    teleport_to_portal(name, path, main_only, claude);
                 }
                 None => process::exit(130),
             }
@@ -151,7 +152,7 @@ fn cmd_pick(config: &Config) {
     let entries = fzf::format_portal_entries(&config.portals, "* ");
 
     if entries.is_empty() {
-        eprintln!("No portals configured. Use 'tp add <name>' to create one.");
+        eprintln!("No portals configured. Use 'tp -a <name>' to create one.");
         process::exit(1);
     }
 
@@ -161,7 +162,7 @@ fn cmd_pick(config: &Config) {
         Some(idx) => {
             let name = &entries[idx].1;
             let path = config.portals.get(name).unwrap();
-            teleport_to_portal(name, path, false);
+            teleport_to_portal(name, path, false, false);
         }
         None => process::exit(130),
     }
@@ -315,7 +316,7 @@ fn cmd_edit() {
 
 fn cmd_ls(config: &Config) {
     if config.portals.is_empty() {
-        println!("No portals configured. Use 'tp add <name>' to create one.");
+        println!("No portals configured. Use 'tp -a <name>' to create one.");
         return;
     }
 
