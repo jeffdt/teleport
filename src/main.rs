@@ -237,15 +237,16 @@ fn cmd_prune(config: &mut Config, force: bool) {
     }
 
     let lines = fzf::format_prune_entries(&broken);
+    let noun = if broken.len() == 1 { "portal" } else { "portals" };
 
     if force {
         for (name, _) in &broken {
             config.remove(name);
         }
         config.save();
-        println!("Removed {} broken {}:", broken.len(), if broken.len() == 1 { "portal" } else { "portals" });
+        println!("Removed {} broken {}:", broken.len(), noun);
     } else {
-        println!("Found {} broken {}:", broken.len(), if broken.len() == 1 { "portal" } else { "portals" });
+        println!("Found {} broken {}:", broken.len(), noun);
     }
 
     for line in &lines {
