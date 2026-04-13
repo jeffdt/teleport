@@ -13,36 +13,36 @@ use resolve::{portal_worktree_context, sorted_worktrees};
 #[derive(Parser)]
 #[command(name = "warp-core", version, about = "Engine for tp (teleport)")]
 struct Cli {
-    #[command(subcommand)]
-    command: Option<Commands>,
+    /// Add a portal for the current directory
+    #[arg(short = 'a', long = "add", conflicts_with_all = ["remove", "list", "edit", "completions"])]
+    add: bool,
+
+    /// Remove a portal
+    #[arg(short = 'r', long = "rm", conflicts_with_all = ["add", "list", "edit", "completions"])]
+    remove: bool,
+
+    /// List all portals
+    #[arg(short = 'l', long = "ls", conflicts_with_all = ["add", "remove", "edit", "completions"])]
+    list: bool,
+
+    /// Open config in editor
+    #[arg(short = 'e', long = "edit", conflicts_with_all = ["add", "remove", "list", "completions"])]
+    edit: bool,
 
     /// Skip worktree picker, go to main worktree
     #[arg(short = 'm', long = "main")]
     main_worktree: bool,
 
-    /// Portal name to teleport to
-    name: Option<String>,
-}
+    /// Open Claude after teleporting
+    #[arg(short = 'c', long = "claude")]
+    claude: bool,
 
-#[derive(clap::Subcommand)]
-enum Commands {
-    /// Create a portal from the current directory
-    Add {
-        /// Name for the new portal
-        name: String,
-    },
-    /// Remove a portal
-    Rm {
-        /// Name to remove
-        name: String,
-    },
-    /// List all portals
-    Ls,
-    /// Generate shell completions (hidden)
-    #[command(hide = true)]
-    Completions {
-        shell: Shell,
-    },
+    /// Generate shell completions
+    #[arg(long = "completions", conflicts_with_all = ["add", "remove", "list", "edit"])]
+    completions: Option<Shell>,
+
+    /// Portal name or teleport query
+    name: Option<String>,
 }
 
 fn emit_cd_or_exit(name: &str, target: std::path::PathBuf) {
@@ -110,7 +110,7 @@ fn find_matching_portals<'a>(config: &'a Config, query: &str) -> Vec<(&'a String
         .collect()
 }
 
-fn cmd_teleport(config: &Config, query: &str, main_only: bool) {
+fn cmd_teleport(config: &Config, query: &str, main_only: bool, _claude: bool) {
     if let Some(path) = config.portals.get(query) {
         teleport_to_portal(query, path, main_only);
         return;
@@ -167,13 +167,8 @@ fn cmd_pick(config: &Config) {
     }
 }
 
-const RESERVED_NAMES: &[&str] = &["add", "rm", "ls", "edit", "help", "completions"];
-
-fn cmd_add(config: &mut Config, name: String) {
-    if RESERVED_NAMES.contains(&name.as_str()) {
-        eprintln!("'{}' is a reserved command name", name);
-        process::exit(1);
-    }
+fn cmd_add(config: &mut Config, name: Option<String>) {
+    let name = name.expect("Portal name required for add");
     if config.portals.contains_key(&name) {
         eprintln!("'{}' already exists. Remove it first with 'tp rm {}'.", name, name);
         process::exit(1);
@@ -185,7 +180,8 @@ fn cmd_add(config: &mut Config, name: String) {
     println!("Added portal '{}'", name);
 }
 
-fn cmd_rm(config: &mut Config, name: String) {
+fn cmd_rm(config: &mut Config, name: Option<String>) {
+    let name = name.expect("Portal name required for rm");
     if config.remove(&name) {
         config.save();
         println!("Removed '{}'", name);
@@ -193,6 +189,10 @@ fn cmd_rm(config: &mut Config, name: String) {
         eprintln!("'{}' not found", name);
         process::exit(1);
     }
+}
+
+fn cmd_edit() {
+    println!("edit:{}", Config::path().display());
 }
 
 fn cmd_ls(config: &Config) {
@@ -212,20 +212,20 @@ fn main() {
 
     let mut config = Config::load();
 
-    match cli.command {
-        Some(Commands::Add { name }) => cmd_add(&mut config, name),
-        Some(Commands::Rm { name }) => cmd_rm(&mut config, name),
-        Some(Commands::Ls) => cmd_ls(&config),
-        Some(Commands::Completions { shell }) => {
-            let mut cmd = Cli::command();
-            generate(shell, &mut cmd, "warp-core", &mut std::io::stdout());
-        }
-        None => {
-            if let Some(name) = cli.name {
-                cmd_teleport(&config, &name, cli.main_worktree);
-            } else {
-                cmd_pick(&config);
-            }
-        }
+    if let Some(shell) = cli.completions {
+        let mut cmd = Cli::command();
+        generate(shell, &mut cmd, "warp-core", &mut std::io::stdout());
+    } else if cli.add {
+        cmd_add(&mut config, cli.name);
+    } else if cli.remove {
+        cmd_rm(&mut config, cli.name);
+    } else if cli.list {
+        cmd_ls(&config);
+    } else if cli.edit {
+        cmd_edit();
+    } else if let Some(name) = cli.name {
+        cmd_teleport(&config, &name, cli.main_worktree, cli.claude);
+    } else {
+        cmd_pick(&config);
     }
 }
