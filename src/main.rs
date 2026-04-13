@@ -30,11 +30,11 @@ struct Cli {
     edit: bool,
 
     /// Skip worktree picker, go to main worktree
-    #[arg(short = 'm', long = "main")]
+    #[arg(short = 'm', long = "main", conflicts_with_all = ["add", "remove", "list", "edit", "completions"])]
     main_worktree: bool,
 
     /// Open Claude after teleporting
-    #[arg(short = 'c', long = "claude")]
+    #[arg(short = 'c', long = "claude", conflicts_with_all = ["add", "remove", "list", "edit", "completions"])]
     claude: bool,
 
     /// Generate shell completions
@@ -197,81 +197,6 @@ fn cmd_add(config: &mut Config, name: Option<String>) {
     println!("Added portal '{}'", name);
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn auto_name_from_basename() {
-        let path = "/Users/jeff/code/teleport";
-        let name = std::path::Path::new(path)
-            .file_name()
-            .unwrap()
-            .to_str()
-            .unwrap();
-        assert_eq!(name, "teleport");
-    }
-
-    #[test]
-    fn auto_name_from_basename_nested() {
-        let path = "/Users/jeff/code/my-project/sub";
-        let name = std::path::Path::new(path)
-            .file_name()
-            .unwrap()
-            .to_str()
-            .unwrap();
-        assert_eq!(name, "sub");
-    }
-
-    #[test]
-    fn find_portal_by_path_single_match() {
-        let mut config = Config::default();
-        config.portals.insert("myproject".to_string(), "~/code/myproject".to_string());
-        config.portals.insert("notes".to_string(), "~/Documents/notes".to_string());
-
-        let cwd = resolve::expand_tilde("~/code/myproject");
-        let matches: Vec<_> = config
-            .portals
-            .iter()
-            .filter(|(_, path)| resolve::expand_tilde(path) == cwd)
-            .collect();
-
-        assert_eq!(matches.len(), 1);
-        assert_eq!(matches[0].0, "myproject");
-    }
-
-    #[test]
-    fn find_portal_by_path_no_match() {
-        let mut config = Config::default();
-        config.portals.insert("notes".to_string(), "~/Documents/notes".to_string());
-
-        let cwd = resolve::expand_tilde("~/code/other");
-        let matches: Vec<_> = config
-            .portals
-            .iter()
-            .filter(|(_, path)| resolve::expand_tilde(path) == cwd)
-            .collect();
-
-        assert_eq!(matches.len(), 0);
-    }
-
-    #[test]
-    fn find_portal_by_path_multiple_matches() {
-        let mut config = Config::default();
-        config.portals.insert("proj".to_string(), "~/code/myproject".to_string());
-        config.portals.insert("proj2".to_string(), "~/code/myproject".to_string());
-
-        let cwd = resolve::expand_tilde("~/code/myproject");
-        let matches: Vec<_> = config
-            .portals
-            .iter()
-            .filter(|(_, path)| resolve::expand_tilde(path) == cwd)
-            .collect();
-
-        assert_eq!(matches.len(), 2);
-    }
-}
-
 fn cmd_rm(config: &mut Config, name: Option<String>) {
     let name = match name {
         Some(n) => n,
@@ -346,5 +271,80 @@ fn main() {
         cmd_teleport(&config, &name, cli.main_worktree, cli.claude);
     } else {
         cmd_pick(&config);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn auto_name_from_basename() {
+        let path = "/Users/jeff/code/teleport";
+        let name = std::path::Path::new(path)
+            .file_name()
+            .unwrap()
+            .to_str()
+            .unwrap();
+        assert_eq!(name, "teleport");
+    }
+
+    #[test]
+    fn auto_name_from_basename_nested() {
+        let path = "/Users/jeff/code/my-project/sub";
+        let name = std::path::Path::new(path)
+            .file_name()
+            .unwrap()
+            .to_str()
+            .unwrap();
+        assert_eq!(name, "sub");
+    }
+
+    #[test]
+    fn find_portal_by_path_single_match() {
+        let mut config = Config::default();
+        config.portals.insert("myproject".to_string(), "~/code/myproject".to_string());
+        config.portals.insert("notes".to_string(), "~/Documents/notes".to_string());
+
+        let cwd = resolve::expand_tilde("~/code/myproject");
+        let matches: Vec<_> = config
+            .portals
+            .iter()
+            .filter(|(_, path)| resolve::expand_tilde(path) == cwd)
+            .collect();
+
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].0, "myproject");
+    }
+
+    #[test]
+    fn find_portal_by_path_no_match() {
+        let mut config = Config::default();
+        config.portals.insert("notes".to_string(), "~/Documents/notes".to_string());
+
+        let cwd = resolve::expand_tilde("~/code/other");
+        let matches: Vec<_> = config
+            .portals
+            .iter()
+            .filter(|(_, path)| resolve::expand_tilde(path) == cwd)
+            .collect();
+
+        assert_eq!(matches.len(), 0);
+    }
+
+    #[test]
+    fn find_portal_by_path_multiple_matches() {
+        let mut config = Config::default();
+        config.portals.insert("proj".to_string(), "~/code/myproject".to_string());
+        config.portals.insert("proj2".to_string(), "~/code/myproject".to_string());
+
+        let cwd = resolve::expand_tilde("~/code/myproject");
+        let matches: Vec<_> = config
+            .portals
+            .iter()
+            .filter(|(_, path)| resolve::expand_tilde(path) == cwd)
+            .collect();
+
+        assert_eq!(matches.len(), 2);
     }
 }
