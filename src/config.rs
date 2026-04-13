@@ -61,14 +61,16 @@ mod tests {
     #[test]
     fn broken_portals_finds_missing_dirs() {
         let existing = tempfile::tempdir().unwrap();
-        let missing_path = "/tmp/tp-test-nonexistent-dir-abc123";
+        let gone = tempfile::tempdir().unwrap();
+        let missing_path = gone.path().display().to_string();
+        drop(gone);
 
         let mut config = Config::default();
         config.add_portal(
             "good".to_string(),
             format!("{}", existing.path().display()),
         );
-        config.add_portal("bad".to_string(), missing_path.to_string());
+        config.add_portal("bad".to_string(), missing_path.clone());
 
         let broken = config.broken_portals();
         assert_eq!(broken.len(), 1);
