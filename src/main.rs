@@ -168,9 +168,25 @@ fn cmd_pick(config: &Config) {
 }
 
 fn cmd_add(config: &mut Config, name: Option<String>) {
-    let name = name.expect("Portal name required for add");
+    let name = match name {
+        Some(n) => n,
+        None => {
+            let cwd = std::env::current_dir().expect("could not determine current directory");
+            let basename = cwd
+                .file_name()
+                .expect("current directory has no name")
+                .to_str()
+                .expect("directory name is not valid UTF-8")
+                .to_string();
+            basename
+        }
+    };
+
     if config.portals.contains_key(&name) {
-        eprintln!("'{}' already exists. Remove it first with 'tp rm {}'.", name, name);
+        eprintln!(
+            "Portal '{}' already exists. Use 'tp -a <name>' to specify a different name.",
+            name
+        );
         process::exit(1);
     }
 
@@ -178,6 +194,31 @@ fn cmd_add(config: &mut Config, name: Option<String>) {
     config.add_portal(name.clone(), path);
     config.save();
     println!("Added portal '{}'", name);
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn auto_name_from_basename() {
+        let path = "/Users/jeff/code/teleport";
+        let name = std::path::Path::new(path)
+            .file_name()
+            .unwrap()
+            .to_str()
+            .unwrap();
+        assert_eq!(name, "teleport");
+    }
+
+    #[test]
+    fn auto_name_from_basename_nested() {
+        let path = "/Users/jeff/code/my-project/sub";
+        let name = std::path::Path::new(path)
+            .file_name()
+            .unwrap()
+            .to_str()
+            .unwrap();
+        assert_eq!(name, "sub");
+    }
 }
 
 fn cmd_rm(config: &mut Config, name: Option<String>) {
