@@ -66,6 +66,12 @@ enum Commands {
     Completions {
         shell: Shell,
     },
+    /// Find and remove broken portals
+    Prune {
+        /// Actually remove broken portals (default is dry-run)
+        #[arg(short = 'f', long = "force")]
+        force: bool,
+    },
 }
 
 fn emit_cd_or_exit(name: &str, target: std::path::PathBuf) {
@@ -194,7 +200,7 @@ fn cmd_pick(config: &Config) {
     }
 }
 
-const RESERVED_NAMES: &[&str] = &["add", "rm", "ls", "edit", "help", "completions"];
+const RESERVED_NAMES: &[&str] = &["add", "rm", "ls", "edit", "help", "completions", "prune"];
 
 fn cmd_add(config: &mut Config, name: String) {
     if RESERVED_NAMES.contains(&name.as_str()) {
@@ -222,6 +228,36 @@ fn cmd_rm(config: &mut Config, name: String) {
     }
 }
 
+fn cmd_prune(config: &mut Config, force: bool) {
+    let broken = config.broken_portals();
+
+    if broken.is_empty() {
+        println!("All portals are valid.");
+        return;
+    }
+
+    let lines = fzf::format_prune_entries(&broken);
+    let noun = if broken.len() == 1 { "portal" } else { "portals" };
+
+    if force {
+        for (name, _) in &broken {
+            config.remove(name);
+        }
+        config.save();
+        println!("Removed {} broken {}:", broken.len(), noun);
+    } else {
+        println!("Found {} broken {}:", broken.len(), noun);
+    }
+
+    for line in &lines {
+        println!("{}", line);
+    }
+
+    if !force {
+        println!("Run 'tp prune -f' to remove them.");
+    }
+}
+
 fn cmd_ls(config: &Config) {
     if config.portals.is_empty() {
         println!("No portals configured. Use 'tp add <name>' to create one.");
@@ -243,6 +279,7 @@ fn main() {
         Some(Commands::Add { name }) => cmd_add(&mut config, name),
         Some(Commands::Rm { name }) => cmd_rm(&mut config, name),
         Some(Commands::Ls) => cmd_ls(&config),
+        Some(Commands::Prune { force }) => cmd_prune(&mut config, force),
         Some(Commands::Completions { shell }) => {
             let mut cmd = Cli::command();
             generate(shell, &mut cmd, "warp-core", &mut std::io::stdout());
