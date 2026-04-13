@@ -42,6 +42,7 @@ Two components:
 ```bash
 source "$HOME/.cargo/env"
 cargo build                    # build
+cargo run -- <args>            # test warp-core without installing (avoids worktree binary collisions)
 cargo install --path .         # install to ~/.cargo/bin/
 cp shell/tp.zsh ~/shell/common/tp.zsh  # update shell wrapper
 ```
