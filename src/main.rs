@@ -198,6 +198,8 @@ fn cmd_add(config: &mut Config, name: Option<String>) {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
     #[test]
     fn auto_name_from_basename() {
         let path = "/Users/jeff/code/teleport";
@@ -219,15 +221,90 @@ mod tests {
             .unwrap();
         assert_eq!(name, "sub");
     }
+
+    #[test]
+    fn find_portal_by_path_single_match() {
+        let mut config = Config::default();
+        config.portals.insert("myproject".to_string(), "~/code/myproject".to_string());
+        config.portals.insert("notes".to_string(), "~/Documents/notes".to_string());
+
+        let cwd = resolve::expand_tilde("~/code/myproject");
+        let matches: Vec<_> = config
+            .portals
+            .iter()
+            .filter(|(_, path)| resolve::expand_tilde(path) == cwd)
+            .collect();
+
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].0, "myproject");
+    }
+
+    #[test]
+    fn find_portal_by_path_no_match() {
+        let mut config = Config::default();
+        config.portals.insert("notes".to_string(), "~/Documents/notes".to_string());
+
+        let cwd = resolve::expand_tilde("~/code/other");
+        let matches: Vec<_> = config
+            .portals
+            .iter()
+            .filter(|(_, path)| resolve::expand_tilde(path) == cwd)
+            .collect();
+
+        assert_eq!(matches.len(), 0);
+    }
+
+    #[test]
+    fn find_portal_by_path_multiple_matches() {
+        let mut config = Config::default();
+        config.portals.insert("proj".to_string(), "~/code/myproject".to_string());
+        config.portals.insert("proj2".to_string(), "~/code/myproject".to_string());
+
+        let cwd = resolve::expand_tilde("~/code/myproject");
+        let matches: Vec<_> = config
+            .portals
+            .iter()
+            .filter(|(_, path)| resolve::expand_tilde(path) == cwd)
+            .collect();
+
+        assert_eq!(matches.len(), 2);
+    }
 }
 
 fn cmd_rm(config: &mut Config, name: Option<String>) {
-    let name = name.expect("Portal name required for rm");
+    let name = match name {
+        Some(n) => n,
+        None => {
+            let cwd = std::env::current_dir().expect("could not determine current directory");
+            let matches: Vec<_> = config
+                .portals
+                .iter()
+                .filter(|(_, path)| resolve::expand_tilde(path) == cwd)
+                .map(|(name, _)| name.clone())
+                .collect();
+
+            match matches.len() {
+                0 => {
+                    eprintln!("No portal points to this directory");
+                    process::exit(1);
+                }
+                1 => matches.into_iter().next().unwrap(),
+                _ => {
+                    eprintln!(
+                        "Multiple portals point to this directory: {}. Specify which one with 'tp -r <name>'.",
+                        matches.join(", ")
+                    );
+                    process::exit(1);
+                }
+            }
+        }
+    };
+
     if config.remove(&name) {
         config.save();
-        println!("Removed '{}'", name);
+        println!("Removed portal '{}'", name);
     } else {
-        eprintln!("'{}' not found", name);
+        eprintln!("Portal '{}' not found", name);
         process::exit(1);
     }
 }
