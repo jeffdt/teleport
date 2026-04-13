@@ -10,6 +10,13 @@ use clap_complete::{generate, Shell};
 use config::Config;
 use resolve::{portal_worktree_context, sorted_worktrees};
 
+#[derive(Clone, Copy)]
+enum WorktreeMode {
+    Picker,
+    MainOnly,
+    Direct,
+}
+
 #[derive(Parser)]
 #[command(name = "warp-core", version, about = "Engine for tp (teleport)")]
 struct Cli {
@@ -17,11 +24,27 @@ struct Cli {
     command: Option<Commands>,
 
     /// Skip worktree picker, go to main worktree
-    #[arg(short = 'm', long = "main")]
+    #[arg(short = 'm', long = "main", conflicts_with = "direct")]
     main_worktree: bool,
+
+    /// Skip worktree picker, go to the stored path directly
+    #[arg(short = 'd', long = "direct", conflicts_with = "main_worktree")]
+    direct: bool,
 
     /// Portal name to teleport to
     name: Option<String>,
+}
+
+impl Cli {
+    fn worktree_mode(&self) -> WorktreeMode {
+        if self.direct {
+            WorktreeMode::Direct
+        } else if self.main_worktree {
+            WorktreeMode::MainOnly
+        } else {
+            WorktreeMode::Picker
+        }
+    }
 }
 
 #[derive(clap::Subcommand)]
@@ -53,11 +76,15 @@ fn emit_cd_or_exit(name: &str, target: std::path::PathBuf) {
     println!("cd:{}", target.display());
 }
 
-/// Teleport to a known portal by name, handling worktree resolution.
-fn teleport_to_portal(name: &str, path: &str, main_only: bool) {
+fn teleport_to_portal(name: &str, path: &str, mode: WorktreeMode) {
+    if matches!(mode, WorktreeMode::Direct) {
+        emit_cd_or_exit(name, resolve::resolve_portal(path));
+        return;
+    }
+
     match portal_worktree_context(path) {
         Some(ctx) if ctx.worktrees.len() > 1 => {
-            let worktree_root = if main_only {
+            let worktree_root = if matches!(mode, WorktreeMode::MainOnly) {
                 ctx.main_worktree
             } else {
                 let sorted = sorted_worktrees(
@@ -110,9 +137,9 @@ fn find_matching_portals<'a>(config: &'a Config, query: &str) -> Vec<(&'a String
         .collect()
 }
 
-fn cmd_teleport(config: &Config, query: &str, main_only: bool) {
+fn cmd_teleport(config: &Config, query: &str, mode: WorktreeMode) {
     if let Some(path) = config.portals.get(query) {
-        teleport_to_portal(query, path, main_only);
+        teleport_to_portal(query, path, mode);
         return;
     }
 
@@ -125,7 +152,7 @@ fn cmd_teleport(config: &Config, query: &str, main_only: bool) {
         }
         1 => {
             let (name, path) = matches[0];
-            teleport_to_portal(name, path, main_only);
+            teleport_to_portal(name, path, mode);
         }
         _ => {
             let filtered: std::collections::BTreeMap<String, String> = matches
@@ -139,7 +166,7 @@ fn cmd_teleport(config: &Config, query: &str, main_only: bool) {
                 Some(idx) => {
                     let name = &entries[idx].1;
                     let path = config.portals.get(name).unwrap();
-                    teleport_to_portal(name, path, main_only);
+                    teleport_to_portal(name, path, mode);
                 }
                 None => process::exit(130),
             }
@@ -161,7 +188,7 @@ fn cmd_pick(config: &Config) {
         Some(idx) => {
             let name = &entries[idx].1;
             let path = config.portals.get(name).unwrap();
-            teleport_to_portal(name, path, false);
+            teleport_to_portal(name, path, WorktreeMode::Picker);
         }
         None => process::exit(130),
     }
@@ -221,8 +248,9 @@ fn main() {
             generate(shell, &mut cmd, "warp-core", &mut std::io::stdout());
         }
         None => {
+            let mode = cli.worktree_mode();
             if let Some(name) = cli.name {
-                cmd_teleport(&config, &name, cli.main_worktree);
+                cmd_teleport(&config, &name, mode);
             } else {
                 cmd_pick(&config);
             }
