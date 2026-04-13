@@ -4,23 +4,49 @@ use std::process::{Command, Stdio};
 
 use crate::resolve::collapse_tilde;
 
-/// Format portal entries for display. Returns (display_line, portal_name) pairs.
-/// Use `prefix` to distinguish contexts: e.g. `"* "` for picker, `""` for `tp ls`.
+const MAX_DISPLAYED_NAMES: usize = 3;
+
+/// Format portal entries for display, grouping portals that share the same path.
+/// Returns (display_line, portal_name) pairs where portal_name is the first
+/// alphabetical name in each group (used as the lookup key).
 pub fn format_portal_entries(
     portals: &std::collections::BTreeMap<String, String>,
     prefix: &str,
 ) -> Vec<(String, String)> {
-    let name_width = portals.keys().map(|k| k.len()).max().unwrap_or(0);
+    let mut by_path: std::collections::BTreeMap<&str, Vec<&str>> =
+        std::collections::BTreeMap::new();
+    // BTreeMap iteration is sorted by key, so names within each group arrive alphabetically.
+    for (name, path) in portals {
+        by_path.entry(path.as_str()).or_default().push(name.as_str());
+    }
 
-    portals
-        .iter()
-        .map(|(name, path)| {
+    let mut grouped: Vec<(String, String, String)> = by_path
+        .into_iter()
+        .map(|(path, names)| {
+            let display_names = if names.len() > MAX_DISPLAYED_NAMES {
+                let shown = &names[..MAX_DISPLAYED_NAMES];
+                let extra = names.len() - MAX_DISPLAYED_NAMES;
+                format!("{} +{} more", shown.join(", "), extra)
+            } else {
+                names.join(", ")
+            };
+            let key = names[0].to_string();
+            (display_names, path.to_string(), key)
+        })
+        .collect();
+    grouped.sort_by(|a, b| a.2.cmp(&b.2));
+
+    let name_width = grouped.iter().map(|(dn, _, _)| dn.len()).max().unwrap_or(0);
+
+    grouped
+        .into_iter()
+        .map(|(display_names, path, key)| {
             let display = format!(
                 "  {}{:<width$}  {}",
-                prefix, name, path,
+                prefix, display_names, path,
                 width = name_width
             );
-            (display, name.clone())
+            (display, key)
         })
         .collect()
 }
@@ -156,6 +182,52 @@ mod tests {
         // Neither has no labels
         assert!(!entries[2].0.contains("(current)"));
         assert!(!entries[2].0.contains("(main)"));
+    }
+
+    #[test]
+    fn portal_entries_dedup_same_path() {
+        let portals = [
+            ("insights".to_string(), "~/r/k-repo/insights_service".to_string()),
+            ("is".to_string(), "~/r/k-repo/insights_service".to_string()),
+            ("app".to_string(), "~/r/app".to_string()),
+        ]
+        .into_iter()
+        .collect();
+
+        let entries = format_portal_entries(&portals, "* ");
+        assert_eq!(entries.len(), 2);
+
+        let grouped = entries.iter().find(|(d, _)| d.contains("insights")).unwrap();
+        assert!(grouped.0.contains("insights, is"));
+        assert!(grouped.0.contains("~/r/k-repo/insights_service"));
+        assert_eq!(grouped.1, "insights");
+
+        let singleton = entries.iter().find(|(d, _)| d.contains("app")).unwrap();
+        assert!(singleton.0.contains("app"));
+        assert_eq!(singleton.1, "app");
+    }
+
+    #[test]
+    fn portal_entries_cap_names_at_three() {
+        let portals = [
+            ("a".to_string(), "~/same".to_string()),
+            ("b".to_string(), "~/same".to_string()),
+            ("c".to_string(), "~/same".to_string()),
+            ("d".to_string(), "~/same".to_string()),
+            ("e".to_string(), "~/same".to_string()),
+        ]
+        .into_iter()
+        .collect();
+
+        let entries = format_portal_entries(&portals, "* ");
+        assert_eq!(entries.len(), 1);
+        let display = &entries[0].0;
+        assert!(display.contains("a, b, c"));
+        assert!(display.contains("+2 more"));
+        // Portal names "d" and "e" must not appear as listed names (only a, b, c shown)
+        let name_section = display.split("  ~/").next().unwrap_or(display);
+        assert!(!name_section.contains(", d") && !name_section.contains("d,"));
+        assert!(!name_section.contains(", e") && !name_section.contains("e,"));
     }
 
     #[test]
