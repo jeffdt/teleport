@@ -30,11 +30,14 @@ tp blog         # teleport to a portal by exact name
 tp dot          # substring match: jumps directly if one match, picker if multiple
 tp              # fzf picker over all portals
 tp -m blog      # skip worktree picker, go straight to main worktree
+tp -d blog      # skip worktree picker, go to the stored path directly (experimental)
 tp -c blog      # teleport then open Claude Code
-tp add myplace  # create a portal from current directory
-tp rm myplace   # remove a portal
-tp ls           # list all portals
-tp edit         # open config in $EDITOR
+tp -a myplace   # create a portal from current directory (auto-names from basename if omitted)
+tp -r myplace   # remove a portal (removes by cwd match if name omitted)
+tp -l           # list all portals
+tp -e           # open config in $EDITOR
+tp -p           # find broken portals (dry-run)
+tp -p -f        # remove broken portals
 ```
 
 ## Worktree support
@@ -56,4 +59,4 @@ notes = "~/Documents/notes"
 
 ## How it works
 
-`tp` is a zsh function that calls `warp-core` (the Rust binary). The binary handles config, path resolution, worktree discovery, and fzf integration, then outputs a `cd:/path` directive. The shell function interprets it and runs `cd`. This split exists because a subprocess cannot change the parent shell's working directory.
+`tp` is a zsh function that calls `warp-core` (the Rust binary). The binary handles config, path resolution, worktree discovery, and fzf integration, then outputs directives to stdout: `cd:/path` (change directory), `cd+c:/path` (change directory and open Claude), or `edit:/path` (open file in `$EDITOR`). The shell function interprets these and executes the corresponding shell-level action. This split exists because a subprocess cannot change the parent shell's working directory.

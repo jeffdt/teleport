@@ -51,7 +51,7 @@ struct Cli {
     #[arg(short = 'm', long = "main", conflicts_with_all = ["add", "remove", "list", "edit", "prune", "direct"])]
     main_worktree: bool,
 
-    /// Skip worktree picker, go to the stored path directly
+    /// Skip worktree picker, go to the stored path directly (experimental)
     #[arg(short = 'd', long = "direct", conflicts_with_all = ["add", "remove", "list", "edit", "prune", "main_worktree"])]
     direct: bool,
 

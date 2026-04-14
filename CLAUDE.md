@@ -4,41 +4,24 @@ Directory teleportation tool with worktree-aware bookmarks called **portals**.
 
 ## Architecture
 
-Two components:
+Two components that split along a hard boundary: a subprocess cannot change the parent shell's working directory.
 
-- **`warp-core`** (Rust binary): handles config parsing, path resolution, worktree discovery, fzf integration. Outputs directives to stdout: `cd:<path>` (shell should cd) or plain text (shell should print). Never calls `cd` itself.
-- **`tp`** (zsh function in `shell/tp.zsh`): calls `warp-core`, interprets directives (`cd:`, `cd+c:`, `edit:`), executes shell-level actions. Pure dispatcher with no logic of its own.
+- **`warp-core`** (Rust binary): all logic lives here. Config, path resolution, worktree discovery, fzf pickers. Outputs directives to stdout (`cd:`, `cd+c:`, `edit:`, or plain text) but never performs shell actions itself.
+- **`tp`** (zsh function, embedded in the binary via `--init`): pure dispatcher. Calls `warp-core`, pattern-matches on the directive prefix, executes the shell-level action. No branching logic of its own.
 
 ## Key concepts
 
-- **Portal**: a named bookmark to any directory. Stored as `name = "~/path"` under `[portals]` in config. If the path is inside a git repo with multiple worktrees, tp automatically shows a picker to choose which worktree to resolve through.
-- **Substring matching**: `tp <query>` first tries an exact portal name match. If none, it searches portal names and paths for a case-insensitive substring match. A single match teleports directly; multiple matches open an fzf picker filtered to just those portals.
-- **Worktree awareness**: at teleport time, tp detects if a portal's path is inside a git repo. If the repo has multiple worktrees, a top-down fzf picker appears with colored `(current)` and `(main)` labels. The current worktree is pre-selected at the top. Use `-m` to skip the picker and go straight to the main worktree.
-- **Config**: TOML at `~/.config/tp/portals.toml`. Uses `dirs::home_dir().join(".config")` (XDG style), not `dirs::config_dir()` (which returns `~/Library/Application Support` on macOS).
+- **Portal**: a named bookmark to any directory. Stored as `name = "~/path"` under `[portals]` in config.
+- **Substring matching**: `tp <query>` tries exact name match first, then case-insensitive substring across names and paths. Single match teleports directly; multiple matches open an fzf picker.
+- **Worktree awareness**: if a portal's path is inside a git repo with multiple worktrees, tp shows a picker to choose which worktree to resolve through. `-m` skips the picker and goes to the main worktree; `-d` skips it and goes to the stored path directly.
+- **Config path**: `~/.config/tp/portals.toml`. Uses `dirs::home_dir().join(".config")` (XDG style), not `dirs::config_dir()` (which returns `~/Library/Application Support` on macOS).
 
-## Source layout
+## Key gotchas
 
-| File | Responsibility |
-|---|---|
-| `src/main.rs` | CLI definition (clap), flag dispatch, substring matching |
-| `src/config.rs` | TOML types (Config), load/save, add/remove |
-| `src/resolve.rs` | Tilde expansion, git worktree list, portal worktree context, detect_add_context |
-| `src/fzf.rs` | Format table rows, spawn fzf subprocess (ANSI-aware, index-based matching), parse selection |
-| `shell/tp.zsh` | Shell directive dispatcher + zsh tab completion |
-
-## Commands
-
-- `tp <query>` teleport to portal by exact name or substring match (with worktree picker if multiple worktrees)
-- `tp` (no args) fzf picker
-- `tp -a [name]` add portal for cwd (auto-names from directory basename if name omitted)
-- `tp -r [name]` remove portal (by name, or by cwd match if name omitted)
-- `tp -l` list all portals
-- `tp -e` open config in $EDITOR
-- `tp -m <query>` teleport to main worktree (skip picker)
-- `tp -d <query>` teleport directly to stored path (skip worktree picker entirely)
-- `tp -c <query>` teleport then open Claude (composes with -m)
-- `tp -p` find broken portals (dry-run)
-- `tp -p -f` remove broken portals
+- **Shell integration is embedded**: `shell/tp.zsh` is compiled into the binary via `include_str!` and served by `warp-core --init zsh`. There is no separate install step for the shell wrapper. Users add `eval "$(warp-core --init zsh)"` to their `.zshrc`.
+- **Directive protocol**: warp-core communicates with the shell function through a line-oriented protocol. Adding a new directive means updating both the Rust `emit_*` call and the `case` statement in `tp.zsh`.
+- **fzf is required at runtime**: tp will error with an install hint if fzf is not found. No fallback picker exists.
+- **No `clap_complete`**: shell completions are hand-rolled in `tp.zsh` (calls `warp-core -l` and extracts names). The `clap_complete` crate is not a dependency.
 
 ## Development
 
@@ -47,7 +30,6 @@ source "$HOME/.cargo/env"
 cargo build                    # build
 cargo run -- <args>            # test warp-core without installing (avoids worktree binary collisions)
 cargo install --path .         # install to ~/.cargo/bin/
-cp shell/tp.zsh ~/shell/common/tp.zsh  # update shell wrapper
 ```
 
 ## Git workflow
