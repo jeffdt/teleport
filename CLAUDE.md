@@ -35,13 +35,17 @@ Two components:
 - `tp -l` list all portals
 - `tp -e` open config in $EDITOR
 - `tp -m <query>` teleport to main worktree (skip picker)
+- `tp -d <query>` teleport directly to stored path (skip worktree picker entirely)
 - `tp -c <query>` teleport then open Claude (composes with -m)
+- `tp -p` find broken portals (dry-run)
+- `tp -p -f` remove broken portals
 
 ## Development
 
 ```bash
 source "$HOME/.cargo/env"
 cargo build                    # build
+cargo run -- <args>            # test warp-core without installing (avoids worktree binary collisions)
 cargo install --path .         # install to ~/.cargo/bin/
 cp shell/tp.zsh ~/shell/common/tp.zsh  # update shell wrapper
 ```

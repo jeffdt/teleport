@@ -43,4 +43,69 @@ impl Config {
     pub fn remove(&mut self, name: &str) -> bool {
         self.portals.remove(name).is_some()
     }
+
+    pub fn broken_portals(&self) -> Vec<(String, String)> {
+        self.portals
+            .iter()
+            .filter(|(_, path)| !crate::resolve::expand_tilde(path).is_dir())
+            .map(|(name, path)| (name.clone(), path.clone()))
+            .collect()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+
+    #[test]
+    fn broken_portals_finds_missing_dirs() {
+        let existing = tempfile::tempdir().unwrap();
+        let gone = tempfile::tempdir().unwrap();
+        let missing_path = gone.path().display().to_string();
+        drop(gone);
+
+        let mut config = Config::default();
+        config.add_portal(
+            "good".to_string(),
+            format!("{}", existing.path().display()),
+        );
+        config.add_portal("bad".to_string(), missing_path.clone());
+
+        let broken = config.broken_portals();
+        assert_eq!(broken.len(), 1);
+        assert_eq!(broken[0].0, "bad");
+        assert_eq!(broken[0].1, missing_path);
+    }
+
+    #[test]
+    fn broken_portals_empty_when_all_valid() {
+        let existing = tempfile::tempdir().unwrap();
+
+        let mut config = Config::default();
+        config.add_portal(
+            "good".to_string(),
+            format!("{}", existing.path().display()),
+        );
+
+        let broken = config.broken_portals();
+        assert!(broken.is_empty());
+    }
+
+    #[test]
+    fn broken_portals_detects_file_not_dir() {
+        let dir = tempfile::tempdir().unwrap();
+        let file_path = dir.path().join("not-a-dir");
+        fs::write(&file_path, "i am a file").unwrap();
+
+        let mut config = Config::default();
+        config.add_portal(
+            "file-portal".to_string(),
+            format!("{}", file_path.display()),
+        );
+
+        let broken = config.broken_portals();
+        assert_eq!(broken.len(), 1);
+        assert_eq!(broken[0].0, "file-portal");
+    }
 }

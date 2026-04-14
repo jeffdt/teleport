@@ -10,39 +10,70 @@ use clap_complete::{generate, Shell};
 use config::Config;
 use resolve::{portal_worktree_context, sorted_worktrees};
 
+#[derive(Clone, Copy)]
+enum WorktreeMode {
+    Picker,
+    MainOnly,
+    Direct,
+}
+
 #[derive(Parser)]
 #[command(name = "warp-core", version, about = "Engine for tp (teleport)")]
 struct Cli {
     /// Add a portal for the current directory
-    #[arg(short = 'a', long = "add", conflicts_with_all = ["remove", "list", "edit", "completions"])]
+    #[arg(short = 'a', long = "add", conflicts_with_all = ["remove", "list", "edit", "prune", "completions"])]
     add: bool,
 
     /// Remove a portal
-    #[arg(short = 'r', long = "rm", conflicts_with_all = ["add", "list", "edit", "completions"])]
+    #[arg(short = 'r', long = "rm", conflicts_with_all = ["add", "list", "edit", "prune", "completions"])]
     remove: bool,
 
     /// List all portals
-    #[arg(short = 'l', long = "ls", conflicts_with_all = ["add", "remove", "edit", "completions"])]
+    #[arg(short = 'l', long = "ls", conflicts_with_all = ["add", "remove", "edit", "prune", "completions"])]
     list: bool,
 
     /// Open config in editor
-    #[arg(short = 'e', long = "edit", conflicts_with_all = ["add", "remove", "list", "completions"])]
+    #[arg(short = 'e', long = "edit", conflicts_with_all = ["add", "remove", "list", "prune", "completions"])]
     edit: bool,
 
+    /// Find and remove broken portals (dry-run by default, use with -f to remove)
+    #[arg(short = 'p', long = "prune", conflicts_with_all = ["add", "remove", "list", "edit", "completions"])]
+    prune: bool,
+
+    /// Actually remove broken portals (use with -p)
+    #[arg(short = 'f', long = "force", requires = "prune")]
+    force: bool,
+
     /// Skip worktree picker, go to main worktree
-    #[arg(short = 'm', long = "main", conflicts_with_all = ["add", "remove", "list", "edit", "completions"])]
+    #[arg(short = 'm', long = "main", conflicts_with_all = ["add", "remove", "list", "edit", "prune", "completions", "direct"])]
     main_worktree: bool,
 
+    /// Skip worktree picker, go to the stored path directly
+    #[arg(short = 'd', long = "direct", conflicts_with_all = ["add", "remove", "list", "edit", "prune", "completions", "main_worktree"])]
+    direct: bool,
+
     /// Open Claude after teleporting
-    #[arg(short = 'c', long = "claude", conflicts_with_all = ["add", "remove", "list", "edit", "completions"])]
+    #[arg(short = 'c', long = "claude", conflicts_with_all = ["add", "remove", "list", "edit", "prune", "completions"])]
     claude: bool,
 
     /// Generate shell completions
-    #[arg(long = "completions", conflicts_with_all = ["add", "remove", "list", "edit"])]
+    #[arg(long = "completions", conflicts_with_all = ["add", "remove", "list", "edit", "prune"])]
     completions: Option<Shell>,
 
     /// Portal name or teleport query
     name: Option<String>,
+}
+
+impl Cli {
+    fn worktree_mode(&self) -> WorktreeMode {
+        if self.direct {
+            WorktreeMode::Direct
+        } else if self.main_worktree {
+            WorktreeMode::MainOnly
+        } else {
+            WorktreeMode::Picker
+        }
+    }
 }
 
 fn emit_cd_or_exit(name: &str, target: std::path::PathBuf, claude: bool) {
@@ -54,11 +85,15 @@ fn emit_cd_or_exit(name: &str, target: std::path::PathBuf, claude: bool) {
     println!("{}:{}", prefix, target.display());
 }
 
-/// Teleport to a known portal by name, handling worktree resolution.
-fn teleport_to_portal(name: &str, path: &str, main_only: bool, claude: bool) {
+fn teleport_to_portal(name: &str, path: &str, mode: WorktreeMode, claude: bool) {
+    if matches!(mode, WorktreeMode::Direct) {
+        emit_cd_or_exit(name, resolve::resolve_portal(path), claude);
+        return;
+    }
+
     match portal_worktree_context(path) {
         Some(ctx) if ctx.worktrees.len() > 1 => {
-            let worktree_root = if main_only {
+            let worktree_root = if matches!(mode, WorktreeMode::MainOnly) {
                 ctx.main_worktree
             } else {
                 let sorted = sorted_worktrees(
@@ -111,9 +146,9 @@ fn find_matching_portals<'a>(config: &'a Config, query: &str) -> Vec<(&'a String
         .collect()
 }
 
-fn cmd_teleport(config: &Config, query: &str, main_only: bool, claude: bool) {
+fn cmd_teleport(config: &Config, query: &str, mode: WorktreeMode, claude: bool) {
     if let Some(path) = config.portals.get(query) {
-        teleport_to_portal(query, path, main_only, claude);
+        teleport_to_portal(query, path, mode, claude);
         return;
     }
 
@@ -126,7 +161,7 @@ fn cmd_teleport(config: &Config, query: &str, main_only: bool, claude: bool) {
         }
         1 => {
             let (name, path) = matches[0];
-            teleport_to_portal(name, path, main_only, claude);
+            teleport_to_portal(name, path, mode, claude);
         }
         _ => {
             let filtered: std::collections::BTreeMap<String, String> = matches
@@ -140,7 +175,7 @@ fn cmd_teleport(config: &Config, query: &str, main_only: bool, claude: bool) {
                 Some(idx) => {
                     let name = &entries[idx].1;
                     let path = config.portals.get(name).unwrap();
-                    teleport_to_portal(name, path, main_only, claude);
+                    teleport_to_portal(name, path, mode, claude);
                 }
                 None => process::exit(130),
             }
@@ -162,7 +197,7 @@ fn cmd_pick(config: &Config) {
         Some(idx) => {
             let name = &entries[idx].1;
             let path = config.portals.get(name).unwrap();
-            teleport_to_portal(name, path, false, false);
+            teleport_to_portal(name, path, WorktreeMode::Picker, false);
         }
         None => process::exit(130),
     }
@@ -237,6 +272,36 @@ fn cmd_edit() {
     println!("edit:{}", Config::path().display());
 }
 
+fn cmd_prune(config: &mut Config, force: bool) {
+    let broken = config.broken_portals();
+
+    if broken.is_empty() {
+        println!("All portals are valid.");
+        return;
+    }
+
+    let lines = fzf::format_prune_entries(&broken);
+    let noun = if broken.len() == 1 { "portal" } else { "portals" };
+
+    if force {
+        for (name, _) in &broken {
+            config.remove(name);
+        }
+        config.save();
+        println!("Removed {} broken {}:", broken.len(), noun);
+    } else {
+        println!("Found {} broken {}:", broken.len(), noun);
+    }
+
+    for line in &lines {
+        println!("{}", line);
+    }
+
+    if !force {
+        println!("Run 'tp -p -f' to remove them.");
+    }
+}
+
 fn cmd_ls(config: &Config) {
     if config.portals.is_empty() {
         println!("No portals configured. Use 'tp -a <name>' to create one.");
@@ -265,8 +330,11 @@ fn main() {
         cmd_ls(&config);
     } else if cli.edit {
         cmd_edit();
-    } else if let Some(name) = cli.name {
-        cmd_teleport(&config, &name, cli.main_worktree, cli.claude);
+    } else if cli.prune {
+        cmd_prune(&mut config, cli.force);
+    } else if let Some(ref name) = cli.name {
+        let mode = cli.worktree_mode();
+        cmd_teleport(&config, name, mode, cli.claude);
     } else {
         cmd_pick(&config);
     }
