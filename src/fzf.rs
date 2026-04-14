@@ -74,24 +74,6 @@ pub fn format_worktree_entries(worktrees: &[crate::resolve::WorktreeInfo]) -> Ve
         .collect()
 }
 
-/// Strip ANSI escape codes from a string for comparison.
-fn strip_ansi(s: &str) -> String {
-    let mut result = String::with_capacity(s.len());
-    let mut in_escape = false;
-    for c in s.chars() {
-        if in_escape {
-            if c.is_ascii_alphabetic() {
-                in_escape = false;
-            }
-        } else if c == '\x1b' {
-            in_escape = true;
-        } else {
-            result.push(c);
-        }
-    }
-    result
-}
-
 /// Format broken portal entries for prune output. Returns display lines with aligned columns.
 pub fn format_prune_entries(portals: &[(String, String)]) -> Vec<String> {
     let name_width = portals.iter().map(|(n, _)| n.len()).max().unwrap_or(0);
@@ -104,7 +86,15 @@ pub fn format_prune_entries(portals: &[(String, String)]) -> Vec<String> {
 /// Spawn fzf with the given lines and prompt. Returns the index of the selected line or None.
 pub fn pick(lines: &[String], prompt: &str) -> Option<usize> {
     let fzf = Command::new("fzf")
-        .args(["--height=~50%", "--layout=reverse", "--ansi", "--border", &format!("--prompt={} ", prompt)])
+        .args([
+            "--height=~50%",
+            "--layout=reverse",
+            "--ansi",
+            "--border",
+            "--delimiter=\t",
+            "--with-nth=2..",
+            &format!("--prompt={} ", prompt),
+        ])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::inherit())
@@ -120,8 +110,8 @@ pub fn pick(lines: &[String], prompt: &str) -> Option<usize> {
     };
 
     if let Some(mut stdin) = child.stdin.take() {
-        for line in lines {
-            let _ = writeln!(stdin, "{}", line);
+        for (i, line) in lines.iter().enumerate() {
+            let _ = writeln!(stdin, "{}\t{}", i, line);
         }
     }
 
@@ -130,13 +120,8 @@ pub fn pick(lines: &[String], prompt: &str) -> Option<usize> {
         return None;
     }
 
-    let selected = String::from_utf8(output.stdout).ok()?.trim_end().to_string();
-    if selected.is_empty() {
-        return None;
-    }
-
-    let stripped = strip_ansi(&selected);
-    lines.iter().position(|l| strip_ansi(l) == stripped)
+    let selected = String::from_utf8(output.stdout).ok()?;
+    selected.trim_end().split('\t').next()?.parse().ok()
 }
 
 #[cfg(test)]

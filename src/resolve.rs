@@ -37,34 +37,6 @@ pub fn git_toplevel_for(dir: &Path) -> Option<PathBuf> {
     Some(PathBuf::from(path))
 }
 
-/// Get the path relative to the repo root for a specific directory.
-/// Uses `git rev-parse --show-prefix` which handles worktree indirection correctly.
-pub fn git_show_prefix(dir: &Path) -> Option<String> {
-    let output = Command::new("git")
-        .args(["-C", &dir.display().to_string(), "rev-parse", "--show-prefix"])
-        .output()
-        .ok()?;
-    if !output.status.success() {
-        return None;
-    }
-    let prefix = String::from_utf8(output.stdout).ok()?.trim().to_string();
-    // git returns trailing slash for subdirs, strip it
-    Some(prefix.trim_end_matches('/').to_string())
-}
-
-/// Get the git toplevel for the current directory, if any.
-pub fn git_toplevel() -> Option<PathBuf> {
-    let output = Command::new("git")
-        .args(["rev-parse", "--show-toplevel"])
-        .output()
-        .ok()?;
-    if !output.status.success() {
-        return None;
-    }
-    let path = String::from_utf8(output.stdout).ok()?.trim().to_string();
-    Some(PathBuf::from(path))
-}
-
 /// Get all worktrees for a repo.
 pub fn git_worktree_list(repo_path: &Path) -> Vec<PathBuf> {
     let output = Command::new("git")
@@ -84,11 +56,6 @@ pub fn git_worktree_list(repo_path: &Path) -> Vec<PathBuf> {
         .collect()
 }
 
-/// Resolve a portal to an absolute path.
-pub fn resolve_portal(path: &str) -> PathBuf {
-    expand_tilde(path)
-}
-
 /// Context for resolving a portal that lives inside a git repo.
 pub struct PortalContext {
     pub worktrees: Vec<PathBuf>,
@@ -101,21 +68,37 @@ pub struct PortalContext {
 /// Returns None if the path is not inside a git repo.
 pub fn portal_worktree_context(portal_path: &str) -> Option<PortalContext> {
     let expanded = expand_tilde(portal_path);
-
-    // Find the repo root for this path
     let toplevel = git_toplevel_for(&expanded)?;
 
-    // Relative path within the repo (empty string if at repo root).
-    // Uses git show-prefix to handle worktree indirection correctly.
-    let relative_path = git_show_prefix(&expanded).unwrap_or_default();
+    let relative_path = match (expanded.canonicalize(), toplevel.canonicalize()) {
+        (Ok(ce), Ok(ct)) => ce
+            .strip_prefix(&ct)
+            .map(|p| p.to_string_lossy().into_owned())
+            .unwrap_or_default(),
+        _ => String::new(),
+    };
 
-    // Get worktree list from this repo (works from any worktree)
-    let worktrees = git_worktree_list(&toplevel);
+    // Only spawn `git worktree list` if the repo actually uses worktrees.
+    let git_path = toplevel.join(".git");
+    let may_have_worktrees = if git_path.is_dir() {
+        git_path
+            .join("worktrees")
+            .read_dir()
+            .is_ok_and(|mut d| d.next().is_some())
+    } else {
+        true
+    };
+
+    let worktrees = if may_have_worktrees {
+        git_worktree_list(&toplevel)
+    } else {
+        vec![toplevel.clone()]
+    };
+
     let main_wt = worktrees.first().cloned().unwrap_or_else(|| toplevel.clone());
 
-    // Detect current worktree using already-fetched list (avoids a second git subprocess)
-    let current = git_toplevel().and_then(|cwd_toplevel| {
-        worktrees.iter().find(|wt| **wt == cwd_toplevel).cloned()
+    let current = std::env::current_dir().ok().and_then(|cwd| {
+        worktrees.iter().find(|wt| cwd.starts_with(wt)).cloned()
     });
 
     Some(PortalContext {
