@@ -86,49 +86,48 @@ fn emit_cd_or_exit(name: &str, target: std::path::PathBuf, claude: bool) {
 
 fn teleport_to_portal(name: &str, path: &str, mode: WorktreeMode, claude: bool) {
     if matches!(mode, WorktreeMode::Direct) {
-        emit_cd_or_exit(name, resolve::resolve_portal(path), claude);
+        emit_cd_or_exit(name, resolve::expand_tilde(path), claude);
         return;
     }
 
-    match portal_worktree_context(path) {
-        Some(ctx) if ctx.worktrees.len() > 1 => {
-            let worktree_root = if matches!(mode, WorktreeMode::MainOnly) {
-                ctx.main_worktree
-            } else {
-                let sorted = sorted_worktrees(
-                    &ctx.worktrees,
-                    &ctx.main_worktree,
-                    ctx.current_worktree.as_deref(),
-                );
-                let entries = fzf::format_worktree_entries(&sorted);
-                let display_lines: Vec<String> =
-                    entries.iter().map(|(d, _)| d.clone()).collect();
+    let Some(ctx) = portal_worktree_context(path) else {
+        emit_cd_or_exit(name, resolve::expand_tilde(path), claude);
+        return;
+    };
 
-                match fzf::pick(&display_lines, "Select worktree:") {
-                    Some(idx) => entries[idx].1.clone(),
-                    None => process::exit(130),
-                }
-            };
+    let worktree_root = if ctx.worktrees.len() > 1 && matches!(mode, WorktreeMode::Picker) {
+        let sorted = sorted_worktrees(
+            &ctx.worktrees,
+            &ctx.main_worktree,
+            ctx.current_worktree.as_deref(),
+        );
+        let entries = fzf::format_worktree_entries(&sorted);
+        let display_lines: Vec<String> = entries.iter().map(|(d, _)| d.clone()).collect();
+        match fzf::pick(&display_lines, "Select worktree:") {
+            Some(idx) => entries[idx].1.clone(),
+            None => process::exit(130),
+        }
+    } else {
+        ctx.main_worktree
+    };
 
-            let target = if ctx.relative_path.is_empty() {
-                worktree_root
-            } else {
-                worktree_root.join(&ctx.relative_path)
-            };
-            emit_cd_or_exit(name, target, claude);
+    emit_cd_or_exit(name, worktree_root.join(&ctx.relative_path), claude);
+}
+
+fn pick_and_teleport(
+    portals: &std::collections::BTreeMap<String, String>,
+    mode: WorktreeMode,
+    claude: bool,
+) {
+    let entries = fzf::format_portal_entries(portals, "* ");
+    let display_lines: Vec<String> = entries.iter().map(|(d, _)| d.clone()).collect();
+    match fzf::pick(&display_lines, "Teleport:") {
+        Some(idx) => {
+            let name = &entries[idx].1;
+            let path = portals.get(name).unwrap();
+            teleport_to_portal(name, path, mode, claude);
         }
-        Some(ctx) if ctx.worktrees.len() == 1 => {
-            let wt = ctx.worktrees.into_iter().next().unwrap();
-            let target = if ctx.relative_path.is_empty() {
-                wt
-            } else {
-                wt.join(&ctx.relative_path)
-            };
-            emit_cd_or_exit(name, target, claude);
-        }
-        _ => {
-            emit_cd_or_exit(name, resolve::resolve_portal(path), claude);
-        }
+        None => process::exit(130),
     }
 }
 
@@ -167,39 +166,17 @@ fn cmd_teleport(config: &Config, query: &str, mode: WorktreeMode, claude: bool) 
                 .iter()
                 .map(|(n, p)| ((*n).clone(), (*p).clone()))
                 .collect();
-            let entries = fzf::format_portal_entries(&filtered, "* ");
-            let display_lines: Vec<String> = entries.iter().map(|(d, _)| d.clone()).collect();
-
-            match fzf::pick(&display_lines, "Teleport:") {
-                Some(idx) => {
-                    let name = &entries[idx].1;
-                    let path = config.portals.get(name).unwrap();
-                    teleport_to_portal(name, path, mode, claude);
-                }
-                None => process::exit(130),
-            }
+            pick_and_teleport(&filtered, mode, claude);
         }
     }
 }
 
 fn cmd_pick(config: &Config) {
-    let entries = fzf::format_portal_entries(&config.portals, "* ");
-
-    if entries.is_empty() {
+    if config.portals.is_empty() {
         eprintln!("No portals configured. Use 'tp -a <name>' to create one.");
         process::exit(1);
     }
-
-    let display_lines: Vec<String> = entries.iter().map(|(d, _)| d.clone()).collect();
-
-    match fzf::pick(&display_lines, "Teleport:") {
-        Some(idx) => {
-            let name = &entries[idx].1;
-            let path = config.portals.get(name).unwrap();
-            teleport_to_portal(name, path, WorktreeMode::Picker, false);
-        }
-        None => process::exit(130),
-    }
+    pick_and_teleport(&config.portals, WorktreeMode::Picker, false);
 }
 
 fn cmd_add(config: &mut Config, name: Option<String>) {
