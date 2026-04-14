@@ -169,18 +169,16 @@ fn cmd_pick(config: &Config) {
 }
 
 fn cmd_add(config: &mut Config, name: Option<String>) {
+    let cwd = std::env::current_dir().expect("could not determine current directory");
+
     let name = match name {
         Some(n) => n,
-        None => {
-            let cwd = std::env::current_dir().expect("could not determine current directory");
-            let basename = cwd
-                .file_name()
-                .expect("current directory has no name")
-                .to_str()
-                .expect("directory name is not valid UTF-8")
-                .to_string();
-            basename
-        }
+        None => cwd
+            .file_name()
+            .expect("current directory has no name")
+            .to_str()
+            .expect("directory name is not valid UTF-8")
+            .to_string(),
     };
 
     if config.portals.contains_key(&name) {
@@ -191,7 +189,7 @@ fn cmd_add(config: &mut Config, name: Option<String>) {
         process::exit(1);
     }
 
-    let path = resolve::detect_add_context();
+    let path = resolve::collapse_tilde(&cwd);
     config.add_portal(name.clone(), path);
     config.save();
     println!("Added portal '{}'", name);
