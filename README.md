@@ -17,10 +17,10 @@ brew install fzf
 cargo install --path .
 ```
 
-Copy the shell wrapper to somewhere your `.zshrc` sources:
+Add to your `~/.zshrc`:
 
-```bash
-cp shell/tp.zsh ~/your/shell/config/tp.zsh
+```zsh
+eval "$(warp-core --init zsh)"
 ```
 
 ## Usage
