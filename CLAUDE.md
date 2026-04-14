@@ -7,7 +7,7 @@ Directory teleportation tool with worktree-aware bookmarks called **portals**.
 Two components:
 
 - **`warp-core`** (Rust binary): handles config parsing, path resolution, worktree discovery, fzf integration. Outputs directives to stdout: `cd:<path>` (shell should cd) or plain text (shell should print). Never calls `cd` itself.
-- **`tp`** (zsh function in `shell/tp.zsh`): calls `warp-core`, interprets directives, executes `cd`. Handles `-c` flag (open Claude after teleporting) and `edit` subcommand.
+- **`tp`** (zsh function in `shell/tp.zsh`): calls `warp-core`, interprets directives (`cd:`, `cd+c:`, `edit:`), executes shell-level actions. Pure dispatcher with no logic of its own.
 
 ## Key concepts
 
@@ -20,22 +20,25 @@ Two components:
 
 | File | Responsibility |
 |---|---|
-| `src/main.rs` | CLI definition (clap), subcommand dispatch, substring matching |
+| `src/main.rs` | CLI definition (clap), flag dispatch, substring matching |
 | `src/config.rs` | TOML types (Config), load/save, add/remove |
 | `src/resolve.rs` | Tilde expansion, git worktree list, portal worktree context, detect_add_context |
 | `src/fzf.rs` | Format table rows, spawn fzf subprocess (ANSI-aware, index-based matching), parse selection |
-| `shell/tp.zsh` | Shell wrapper + zsh tab completion |
+| `shell/tp.zsh` | Shell directive dispatcher + zsh tab completion |
 
 ## Commands
 
 - `tp <query>` teleport to portal by exact name or substring match (with worktree picker if multiple worktrees)
-- `tp -m <name>` teleport to main worktree (skip picker)
 - `tp` (no args) fzf picker
-- `tp add <name>` create portal from cwd
-- `tp rm <name>` remove
-- `tp ls` list all
-- `tp edit` open config in $EDITOR
-- `tp -c <name>` teleport then open Claude (composes with -m)
+- `tp -a [name]` add portal for cwd (auto-names from directory basename if name omitted)
+- `tp -r [name]` remove portal (by name, or by cwd match if name omitted)
+- `tp -l` list all portals
+- `tp -e` open config in $EDITOR
+- `tp -m <query>` teleport to main worktree (skip picker)
+- `tp -d <query>` teleport directly to stored path (skip worktree picker entirely)
+- `tp -c <query>` teleport then open Claude (composes with -m)
+- `tp -p` find broken portals (dry-run)
+- `tp -p -f` remove broken portals
 
 ## Development
 

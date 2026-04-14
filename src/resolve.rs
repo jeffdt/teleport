@@ -1,4 +1,3 @@
-use std::env;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -174,12 +173,6 @@ pub fn sorted_worktrees(
     }
 
     result
-}
-
-/// Determine the portal path from the current directory.
-pub fn detect_add_context() -> String {
-    let cwd = env::current_dir().expect("could not determine current directory");
-    collapse_tilde(&cwd)
 }
 
 #[cfg(test)]
