@@ -45,7 +45,3 @@ cargo build                    # build
 cargo install --path .         # install to ~/.cargo/bin/
 cp shell/tp.zsh ~/shell/common/tp.zsh  # update shell wrapper
 ```
-
-## Git workflow
-
-After a PR from the current branch is merged, always fetch and create a new branch from `origin/main` before making further changes. This avoids squash-merge SHA mismatches that pollute the next PR's diff. Stay in the same worktree if convenient, but start a fresh branch from up-to-date main.
