@@ -4,8 +4,7 @@ mod resolve;
 
 use std::process;
 
-use clap::{CommandFactory, Parser};
-use clap_complete::{generate, Shell};
+use clap::Parser;
 
 use config::Config;
 use resolve::{portal_worktree_context, sorted_worktrees};
@@ -21,44 +20,44 @@ enum WorktreeMode {
 #[command(name = "warp-core", version, about = "Engine for tp (teleport)")]
 struct Cli {
     /// Add a portal for the current directory
-    #[arg(short = 'a', long = "add", conflicts_with_all = ["remove", "list", "edit", "prune", "completions"])]
+    #[arg(short = 'a', long = "add", conflicts_with_all = ["remove", "list", "edit", "prune"])]
     add: bool,
 
     /// Remove a portal
-    #[arg(short = 'r', long = "rm", conflicts_with_all = ["add", "list", "edit", "prune", "completions"])]
+    #[arg(short = 'r', long = "rm", conflicts_with_all = ["add", "list", "edit", "prune"])]
     remove: bool,
 
     /// List all portals
-    #[arg(short = 'l', long = "ls", conflicts_with_all = ["add", "remove", "edit", "prune", "completions"])]
+    #[arg(short = 'l', long = "ls", conflicts_with_all = ["add", "remove", "edit", "prune"])]
     list: bool,
 
     /// Open config in editor
-    #[arg(short = 'e', long = "edit", conflicts_with_all = ["add", "remove", "list", "prune", "completions"])]
+    #[arg(short = 'e', long = "edit", conflicts_with_all = ["add", "remove", "list", "prune"])]
     edit: bool,
 
     /// Find and remove broken portals (dry-run by default, use with -f to remove)
-    #[arg(short = 'p', long = "prune", conflicts_with_all = ["add", "remove", "list", "edit", "completions"])]
+    #[arg(short = 'p', long = "prune", conflicts_with_all = ["add", "remove", "list", "edit"])]
     prune: bool,
 
     /// Actually remove broken portals (use with -p)
     #[arg(short = 'f', long = "force", requires = "prune")]
     force: bool,
 
+    /// Print shell integration code for the given shell
+    #[arg(long)]
+    init: Option<String>,
+
     /// Skip worktree picker, go to main worktree
-    #[arg(short = 'm', long = "main", conflicts_with_all = ["add", "remove", "list", "edit", "prune", "completions", "direct"])]
+    #[arg(short = 'm', long = "main", conflicts_with_all = ["add", "remove", "list", "edit", "prune", "direct"])]
     main_worktree: bool,
 
     /// Skip worktree picker, go to the stored path directly
-    #[arg(short = 'd', long = "direct", conflicts_with_all = ["add", "remove", "list", "edit", "prune", "completions", "main_worktree"])]
+    #[arg(short = 'd', long = "direct", conflicts_with_all = ["add", "remove", "list", "edit", "prune", "main_worktree"])]
     direct: bool,
 
     /// Open Claude after teleporting
-    #[arg(short = 'c', long = "claude", conflicts_with_all = ["add", "remove", "list", "edit", "prune", "completions"])]
+    #[arg(short = 'c', long = "claude", conflicts_with_all = ["add", "remove", "list", "edit", "prune"])]
     claude: bool,
-
-    /// Generate shell completions
-    #[arg(long = "completions", conflicts_with_all = ["add", "remove", "list", "edit", "prune"])]
-    completions: Option<Shell>,
 
     /// Portal name or teleport query
     name: Option<String>,
@@ -317,12 +316,22 @@ fn cmd_ls(config: &Config) {
 fn main() {
     let cli = Cli::parse();
 
+    if let Some(shell) = &cli.init {
+        match shell.as_str() {
+            "zsh" => {
+                print!("{}", include_str!("../shell/tp.zsh"));
+                return;
+            }
+            _ => {
+                eprintln!("Unsupported shell: {}. Supported: zsh", shell);
+                process::exit(1);
+            }
+        }
+    }
+
     let mut config = Config::load();
 
-    if let Some(shell) = cli.completions {
-        let mut cmd = Cli::command();
-        generate(shell, &mut cmd, "warp-core", &mut std::io::stdout());
-    } else if cli.add {
+    if cli.add {
         cmd_add(&mut config, cli.name);
     } else if cli.remove {
         cmd_rm(&mut config, cli.name);
@@ -343,6 +352,13 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn init_zsh_outputs_shell_function() {
+        let shell_code = include_str!("../shell/tp.zsh");
+        assert!(shell_code.contains("tp()"));
+        assert!(shell_code.contains("compdef _tp tp"));
+    }
 
     #[test]
     fn auto_name_from_basename() {
