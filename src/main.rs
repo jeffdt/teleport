@@ -180,7 +180,7 @@ fn cmd_pick(config: &Config) {
 }
 
 fn cmd_add(config: &mut Config, name: Option<String>) {
-    let cwd = std::env::current_dir().expect("could not determine current directory");
+    let cwd = resolve::logical_cwd();
 
     let name = match name {
         Some(n) => n,
@@ -214,7 +214,13 @@ fn cmd_rm(config: &mut Config, name: Option<String>) {
             let matches: Vec<_> = config
                 .portals
                 .iter()
-                .filter(|(_, path)| resolve::expand_tilde(path) == cwd)
+                .filter(|(_, path)| {
+                    resolve::expand_tilde(path)
+                        .canonicalize()
+                        .ok()
+                        .as_ref()
+                        == Some(&cwd)
+                })
                 .map(|(name, _)| name.clone())
                 .collect();
 
