@@ -31,7 +31,3 @@ cargo build                    # build
 cargo run -- <args>            # test warp-core without installing (avoids worktree binary collisions)
 cargo install --path .         # install to ~/.cargo/bin/
 ```
-
-## Git workflow
-
-After a PR from the current branch is merged, always fetch and create a new branch from `origin/main` before making further changes. This avoids squash-merge SHA mismatches that pollute the next PR's diff. Stay in the same worktree if convenient, but start a fresh branch from up-to-date main.
