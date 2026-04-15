@@ -24,6 +24,29 @@ pub fn collapse_tilde(path: &Path) -> String {
     path.display().to_string()
 }
 
+/// Resolve the logical working directory from an optional PWD value and a
+/// physical fallback. Prefers PWD when it is an absolute path pointing to an
+/// existing directory, so symlink paths are preserved.
+fn resolve_logical_cwd(pwd: Option<&str>, fallback: PathBuf) -> PathBuf {
+    if let Some(pwd) = pwd {
+        let p = PathBuf::from(pwd);
+        if p.is_absolute() && p.is_dir() {
+            return p;
+        }
+    }
+    fallback
+}
+
+/// Get the current working directory, preferring the PWD environment variable
+/// to preserve symlink paths. Falls back to `std::env::current_dir()` if PWD
+/// is unset or invalid.
+pub fn logical_cwd() -> PathBuf {
+    resolve_logical_cwd(
+        std::env::var("PWD").ok().as_deref(),
+        std::env::current_dir().expect("could not determine current directory"),
+    )
+}
+
 /// Get the git toplevel for a specific directory.
 pub fn git_toplevel_for(dir: &Path) -> Option<PathBuf> {
     let output = Command::new("git")
@@ -196,6 +219,37 @@ mod tests {
         assert!(sorted[0].is_current);
         assert!(sorted[0].is_main);
         assert_eq!(sorted[1].path, wt_a);
+    }
+
+    #[test]
+    fn logical_cwd_prefers_valid_pwd() {
+        let fallback = PathBuf::from("/fallback");
+        let result = resolve_logical_cwd(Some("/tmp"), fallback);
+        assert_eq!(result, PathBuf::from("/tmp"));
+    }
+
+    #[test]
+    fn logical_cwd_rejects_relative_pwd() {
+        let fallback = PathBuf::from("/fallback");
+        let result = resolve_logical_cwd(Some("relative/path"), fallback.clone());
+        assert_eq!(result, fallback);
+    }
+
+    #[test]
+    fn logical_cwd_rejects_nonexistent_pwd() {
+        let fallback = PathBuf::from("/fallback");
+        let result = resolve_logical_cwd(
+            Some("/surely/this/does/not/exist/anywhere"),
+            fallback.clone(),
+        );
+        assert_eq!(result, fallback);
+    }
+
+    #[test]
+    fn logical_cwd_falls_back_when_unset() {
+        let fallback = PathBuf::from("/fallback");
+        let result = resolve_logical_cwd(None, fallback.clone());
+        assert_eq!(result, fallback);
     }
 
     #[test]
