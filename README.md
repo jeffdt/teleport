@@ -20,7 +20,7 @@ cargo install --path .
 Add to your `~/.zshrc`:
 
 ```zsh
-eval "$(warp-core --init zsh)"
+eval "$(tp-core --init zsh)"
 ```
 
 ## Usage
@@ -59,4 +59,4 @@ notes = "~/Documents/notes"
 
 ## How it works
 
-`tp` is a zsh function that calls `warp-core` (the Rust binary). The binary handles config, path resolution, worktree discovery, and fzf integration, then outputs directives to stdout: `cd:/path` (change directory), `cd+c:/path` (change directory and open Claude), or `edit:/path` (open file in `$EDITOR`). The shell function interprets these and executes the corresponding shell-level action. This split exists because a subprocess cannot change the parent shell's working directory.
+`tp` is a zsh function that calls `tp-core` (the Rust binary). The binary handles config, path resolution, worktree discovery, and fzf integration, then outputs directives to stdout: `cd:/path` (change directory), `cd+c:/path` (change directory and open Claude), or `edit:/path` (open file in `$EDITOR`). The shell function interprets these and executes the corresponding shell-level action. This split exists because a subprocess cannot change the parent shell's working directory.
