@@ -1,5 +1,5 @@
 tp() {
-  local result=$(warp-core "$@")
+  local result=$(tp-core "$@")
   local rc=$?
 
   case "$result" in
@@ -15,7 +15,7 @@ tp() {
 _tp() {
   local -a names
   if [[ -f ~/.config/tp/portals.toml ]]; then
-    names=($(warp-core -l 2>/dev/null | awk '{print $1}'))
+    names=($(tp-core -l 2>/dev/null | awk '{print $1}'))
   fi
   _describe 'portal' names
 }

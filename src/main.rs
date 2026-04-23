@@ -17,7 +17,7 @@ enum WorktreeMode {
 }
 
 #[derive(Parser)]
-#[command(name = "warp-core", version, about = "Engine for tp (teleport)")]
+#[command(name = "tp-core", version, about = "Engine for tp (teleport)")]
 struct Cli {
     /// Add a portal for the current directory
     #[arg(short = 'a', long = "add", conflicts_with_all = ["remove", "list", "edit", "prune"])]
