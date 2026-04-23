@@ -10,9 +10,12 @@ A directory teleportation tool for the terminal. Create portals in your favorite
 
 ## Install
 
-Requires Rust and fzf.
+Requires [rustup](https://rustup.rs) and fzf.
 
 ```bash
+# Install Rust via rustup (if you haven't already)
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+
 brew install fzf
 cargo install --path .
 ```
