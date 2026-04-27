@@ -3,30 +3,21 @@
 [![CI](https://github.com/jeffdt/teleport/actions/workflows/ci.yml/badge.svg)](https://github.com/jeffdt/teleport/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-Directory teleportation with worktree-aware bookmarks.
+Directory portals that cut through worktree sprawl.
 
 ## Demo
 
-Drop a portal anywhere, jump there instantly from anywhere else:
-
 ```bash
-$ cd ~/code/user-authentication-service
+$ cd ~/code/authentication-service
 $ tp -a auth
 Added portal 'auth'
 
-$ cd ~
 $ tp auth
-~/code/user-authentication-service $
-```
-
-<!-- gif: add portal and teleport -->
-
-For git repos with multiple worktrees, `tp` shows a picker so you can choose which worktree to land in:
-
-```bash
-$ tp auth
-  auth  ~/code/user-authentication-service        (main)
-> auth  ~/code/user-authentication-service-feat   (current)
+Select worktree:
+  3/3
+| ~/code/authentication-service.feature-oauth   (current)
+  ~/code/authentication-service                 (main)
+  ~/code/authentication-service.pr-review
 ```
 
 <!-- gif: worktree picker in action -->
@@ -50,9 +41,9 @@ eval "$(tp-core --init zsh)"
 
 ## How it works
 
-**Portals** are named bookmarks stored in `~/.config/tp/portals.toml`. Add one from any directory with `tp -a <name>`, then `tp <name>` jumps there from anywhere in your shell. Type just `tp` to open a fuzzy picker over all portals, or a partial name to narrow it down -- exact match wins outright, otherwise a picker opens.
+**Portals** are named shortcuts to directories. `tp -a <name>` drops one wherever you are; `tp <name>` takes you there from anywhere. Type just `tp` to open a fuzzy picker, or a partial name to narrow it down.
 
-If a portal's target is inside a git repo with multiple worktrees, tp shows a picker so you can choose which worktree to resolve through. The current worktree is pre-selected at the top. Use `-m` to skip straight to the main worktree, or `-d` to go to the stored path directly.
+The real power is worktree awareness. If a portal points inside a git repo with multiple worktrees -- common when running parallel agents or juggling feature branches -- tp shows a picker so you land in the right one. One portal per repo, not one per worktree.
 
 ## Usage
 
@@ -78,7 +69,7 @@ Portals are stored at `~/.config/tp/portals.toml`:
 
 ```toml
 [portals]
-auth    = "~/code/user-authentication-service"
+auth     = "~/code/authentication-service"
 dotfiles = "~/dotfiles"
 notes   = "~/Documents/notes"
 ```
