@@ -7,15 +7,22 @@ Directory portals that cut through worktree sprawl.
 
 ## Demo
 
+Add a portal for the current directory:
+
 ```bash
-$ cd ~/code/authentication-service
+> ~/code/authentication-service
 $ tp -a auth
 Added portal 'auth'
+```
 
+Then jump to it from anywhere -- if the repo has multiple worktrees, tp picks one:
+
+```bash
+> ~/Downloads
 $ tp auth
 Select worktree:
   3/3
-| ~/code/authentication-service.feature-oauth   (current)
+| ~/code/authentication-service.feature-oauth
   ~/code/authentication-service                 (main)
   ~/code/authentication-service.pr-review
 ```
