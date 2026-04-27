@@ -173,7 +173,9 @@ fn cmd_teleport(config: &Config, query: &str, mode: WorktreeMode, claude: bool) 
 
 fn cmd_pick(config: &Config) {
     if config.portals.is_empty() {
-        eprintln!("No portals configured. Use 'tp -a <name>' to create one.");
+        eprintln!(
+            "No portals yet.\n\nA portal is a named shortcut to a directory -- worktree-aware for git repos\nwith multiple worktrees.\n\nAdd your first:\n  cd ~/code/user-authentication-service\n  tp -a auth        # 'tp auth' gets you here from anywhere\n\nRun 'tp --help' for all options."
+        );
         process::exit(1);
     }
     pick_and_teleport(&config.portals, WorktreeMode::Picker, false);
