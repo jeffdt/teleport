@@ -33,10 +33,11 @@ $ tp auth
 
 ## Install
 
-Requires [rustup](https://rustup.rs) and [fzf](https://github.com/junegunn/fzf).
+Requires [fzf](https://github.com/junegunn/fzf).
 
 ```bash
-cargo install --git https://github.com/jeffdt/teleport
+brew install jeffdt/tap/tp
+brew install fzf  # if you don't have it already
 ```
 
 Add to your `~/.zshrc`:
@@ -44,6 +45,8 @@ Add to your `~/.zshrc`:
 ```zsh
 eval "$(tp-core --init zsh)"
 ```
+
+> Apple Silicon only for now. If you have Rust installed, `cargo install --git https://github.com/jeffdt/teleport` works on any platform.
 
 ## How it works
 
