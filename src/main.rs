@@ -6,15 +6,8 @@ use std::process;
 
 use clap::Parser;
 
-use config::Config;
+use config::{Config, NavMode};
 use resolve::{portal_worktree_context, sorted_worktrees};
-
-#[derive(Clone, Copy)]
-enum WorktreeMode {
-    Picker,
-    MainOnly,
-    Direct,
-}
 
 #[derive(Parser)]
 #[command(name = "tp-core", version, about = "Engine for tp (teleport)")]
@@ -47,12 +40,12 @@ struct Cli {
     #[arg(long)]
     init: Option<String>,
 
-    /// Skip worktree picker, go to main worktree
-    #[arg(short = 'm', long = "main", conflicts_with_all = ["add", "remove", "list", "edit", "prune", "direct"])]
-    main_worktree: bool,
+    /// Show worktree picker (overrides default_nav_mode)
+    #[arg(short = 'w', long = "worktree", conflicts_with_all = ["add", "remove", "list", "edit", "prune", "direct"])]
+    worktree: bool,
 
     /// Skip worktree picker, go to the stored path directly (experimental)
-    #[arg(short = 'd', long = "direct", conflicts_with_all = ["add", "remove", "list", "edit", "prune", "main_worktree"])]
+    #[arg(short = 'd', long = "direct", conflicts_with_all = ["add", "remove", "list", "edit", "prune", "worktree"])]
     direct: bool,
 
     /// Open Claude after teleporting
@@ -64,13 +57,13 @@ struct Cli {
 }
 
 impl Cli {
-    fn worktree_mode(&self) -> WorktreeMode {
-        if self.direct {
-            WorktreeMode::Direct
-        } else if self.main_worktree {
-            WorktreeMode::MainOnly
+    fn worktree_mode(&self, default: NavMode) -> NavMode {
+        if self.worktree {
+            NavMode::Picker
+        } else if self.direct {
+            NavMode::Direct
         } else {
-            WorktreeMode::Picker
+            default
         }
     }
 }
@@ -84,8 +77,8 @@ fn emit_cd_or_exit(name: &str, target: std::path::PathBuf, claude: bool) {
     println!("{}:{}", prefix, target.display());
 }
 
-fn teleport_to_portal(name: &str, path: &str, mode: WorktreeMode, claude: bool) {
-    if matches!(mode, WorktreeMode::Direct) {
+fn teleport_to_portal(name: &str, path: &str, mode: NavMode, claude: bool) {
+    if matches!(mode, NavMode::Direct) {
         emit_cd_or_exit(name, resolve::expand_tilde(path), claude);
         return;
     }
@@ -95,7 +88,7 @@ fn teleport_to_portal(name: &str, path: &str, mode: WorktreeMode, claude: bool) 
         return;
     };
 
-    let worktree_root = if ctx.worktrees.len() > 1 && matches!(mode, WorktreeMode::Picker) {
+    let worktree_root = if ctx.worktrees.len() > 1 && matches!(mode, NavMode::Picker) {
         let sorted = sorted_worktrees(
             &ctx.worktrees,
             &ctx.main_worktree,
@@ -116,7 +109,7 @@ fn teleport_to_portal(name: &str, path: &str, mode: WorktreeMode, claude: bool) 
 
 fn pick_and_teleport(
     portals: &std::collections::BTreeMap<String, String>,
-    mode: WorktreeMode,
+    mode: NavMode,
     claude: bool,
 ) {
     let entries = fzf::format_portal_entries(portals, "* ");
@@ -144,7 +137,7 @@ fn find_matching_portals<'a>(config: &'a Config, query: &str) -> Vec<(&'a String
         .collect()
 }
 
-fn cmd_teleport(config: &Config, query: &str, mode: WorktreeMode, claude: bool) {
+fn cmd_teleport(config: &Config, query: &str, mode: NavMode, claude: bool) {
     if let Some(path) = config.portals.get(query) {
         teleport_to_portal(query, path, mode, claude);
         return;
@@ -178,7 +171,7 @@ fn cmd_pick(config: &Config) {
         );
         process::exit(1);
     }
-    pick_and_teleport(&config.portals, WorktreeMode::Picker, false);
+    pick_and_teleport(&config.portals, config.settings.default_nav_mode, false);
 }
 
 fn cmd_add(config: &mut Config, name: Option<String>) {
@@ -327,7 +320,7 @@ fn main() {
     } else if cli.prune {
         cmd_prune(&mut config, cli.force);
     } else if let Some(ref name) = cli.name {
-        let mode = cli.worktree_mode();
+        let mode = cli.worktree_mode(config.settings.default_nav_mode);
         cmd_teleport(&config, name, mode, cli.claude);
     } else {
         cmd_pick(&config);
@@ -337,6 +330,36 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn worktree_mode_w_flag_forces_picker() {
+        let cli = Cli::try_parse_from(["tp-core", "-w", "myportal"]).unwrap();
+        assert_eq!(cli.worktree_mode(NavMode::Direct), NavMode::Picker);
+    }
+
+    #[test]
+    fn worktree_mode_d_flag_forces_direct() {
+        let cli = Cli::try_parse_from(["tp-core", "-d", "myportal"]).unwrap();
+        assert_eq!(cli.worktree_mode(NavMode::Picker), NavMode::Direct);
+    }
+
+    #[test]
+    fn worktree_mode_no_flag_uses_config_default_direct() {
+        let cli = Cli::try_parse_from(["tp-core", "myportal"]).unwrap();
+        assert_eq!(cli.worktree_mode(NavMode::Direct), NavMode::Direct);
+    }
+
+    #[test]
+    fn worktree_mode_no_flag_uses_config_default_picker() {
+        let cli = Cli::try_parse_from(["tp-core", "myportal"]).unwrap();
+        assert_eq!(cli.worktree_mode(NavMode::Picker), NavMode::Picker);
+    }
+
+    #[test]
+    fn m_flag_is_rejected() {
+        let result = Cli::try_parse_from(["tp-core", "-m", "myportal"]);
+        assert!(result.is_err(), "-m flag should not be accepted");
+    }
 
     #[test]
     fn init_zsh_outputs_shell_function() {
