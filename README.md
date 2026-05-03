@@ -72,13 +72,18 @@ tp -p -f            # remove broken portals
 
 ## Config
 
-Portals are stored at `~/.config/tp/portals.toml`:
+Config lives at `~/.config/tp/config.toml`:
 
 ```toml
+[settings]
+default_nav_mode = "direct"  # "picker" (default) or "direct"
+
 [portals]
 auth     = "~/code/authentication-service"
 dotfiles = "~/dotfiles"
-notes   = "~/Documents/notes"
+notes    = "~/Documents/notes"
 ```
 
-You can edit this directly (`tp -e`) or manage portals through `tp -a` and `tp -r`.
+`default_nav_mode` controls what happens when you teleport to a portal inside a multi-worktree repo. `picker` shows an fzf menu to choose a worktree; `direct` goes straight to the stored path. Override per-invocation with `-w` (picker) or `-d` (direct).
+
+You can edit the config directly (`tp -e`) or manage portals through `tp -a` and `tp -r`.
