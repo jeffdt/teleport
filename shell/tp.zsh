@@ -5,7 +5,7 @@ tp() {
   case "$result" in
     cd+c:*) cd "${result#cd+c:}" && claude ;;
     cd:*)   cd "${result#cd:}" ;;
-    edit:*) ${EDITOR:-vim} "${result#edit:}" ;;
+    edit:*) ${=EDITOR:-vim} "${result#edit:}" ;;
     *)      [[ -n "$result" ]] && echo "$result" ;;
   esac
 
