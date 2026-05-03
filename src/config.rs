@@ -31,11 +31,27 @@ impl Config {
             .expect("could not determine home directory")
             .join(".config")
             .join("tp")
-            .join("portals.toml")
+            .join("config.toml")
+    }
+
+    // TODO: remove once all users have migrated (added alongside rename portals.toml -> config.toml)
+    fn legacy_path() -> PathBuf {
+        Self::path().with_file_name("portals.toml")
     }
 
     pub fn load() -> Self {
         let path = Self::path();
+        if !path.exists() {
+            // TODO: remove once all users have migrated
+            let legacy = Self::legacy_path();
+            if legacy.exists() {
+                if let Err(e) = fs::rename(&legacy, &path) {
+                    eprintln!("tp: could not rename portals.toml to config.toml: {}", e);
+                } else {
+                    eprintln!("tp: renamed ~/.config/tp/portals.toml -> ~/.config/tp/config.toml");
+                }
+            }
+        }
         if !path.exists() {
             return Self::default();
         }
