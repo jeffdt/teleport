@@ -3,8 +3,24 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::PathBuf;
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum NavMode {
+    #[default]
+    Picker,
+    Direct,
+}
+
+#[derive(Debug, Serialize, Deserialize, Default)]
+pub struct Settings {
+    #[serde(default)]
+    pub default_nav_mode: NavMode,
+}
+
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct Config {
+    #[serde(default)]
+    pub settings: Settings,
     #[serde(default)]
     pub portals: BTreeMap<String, String>,
 }
@@ -15,16 +31,38 @@ impl Config {
             .expect("could not determine home directory")
             .join(".config")
             .join("tp")
-            .join("portals.toml")
+            .join("config.toml")
+    }
+
+    // TODO: remove once all users have migrated (added alongside rename portals.toml -> config.toml)
+    fn legacy_path() -> PathBuf {
+        Self::path().with_file_name("portals.toml")
     }
 
     pub fn load() -> Self {
         let path = Self::path();
         if !path.exists() {
+            // TODO: remove once all users have migrated
+            let legacy = Self::legacy_path();
+            if legacy.exists() {
+                if let Err(e) = fs::rename(&legacy, &path) {
+                    eprintln!("tp: could not rename portals.toml to config.toml: {}", e);
+                } else {
+                    eprintln!("tp: renamed ~/.config/tp/portals.toml -> ~/.config/tp/config.toml");
+                }
+            }
+        }
+        if !path.exists() {
             return Self::default();
         }
         let contents = fs::read_to_string(&path).expect("could not read config file");
-        toml::from_str(&contents).expect("could not parse config file")
+        match toml::from_str(&contents) {
+            Ok(config) => config,
+            Err(e) => {
+                eprintln!("Error in config: {}", e);
+                std::process::exit(1);
+            }
+        }
     }
 
     pub fn save(&self) {
@@ -57,6 +95,47 @@ impl Config {
 mod tests {
     use super::*;
     use std::fs;
+
+    #[test]
+    fn nav_mode_picker_deserializes() {
+        let s: Settings = toml::from_str("default_nav_mode = \"picker\"").unwrap();
+        assert_eq!(s.default_nav_mode, NavMode::Picker);
+    }
+
+    #[test]
+    fn nav_mode_direct_deserializes() {
+        let s: Settings = toml::from_str("default_nav_mode = \"direct\"").unwrap();
+        assert_eq!(s.default_nav_mode, NavMode::Direct);
+    }
+
+    #[test]
+    fn settings_defaults_to_picker_when_absent() {
+        let s: Settings = toml::from_str("").unwrap();
+        assert_eq!(s.default_nav_mode, NavMode::Picker);
+    }
+
+    #[test]
+    fn nav_mode_invalid_value_includes_bad_value_in_error() {
+        let result: Result<Settings, _> = toml::from_str("default_nav_mode = \"blorp\"");
+        assert!(result.is_err());
+        let msg = result.unwrap_err().to_string();
+        assert!(msg.contains("blorp"), "error should mention bad value, got: {}", msg);
+    }
+
+    #[test]
+    fn config_with_settings_section_deserializes() {
+        let toml = "[settings]\ndefault_nav_mode = \"direct\"\n[portals]\nfoo = \"~/foo\"";
+        let config: Config = toml::from_str(toml).unwrap();
+        assert_eq!(config.settings.default_nav_mode, NavMode::Direct);
+        assert_eq!(config.portals.get("foo").unwrap(), "~/foo");
+    }
+
+    #[test]
+    fn config_without_settings_section_defaults_to_picker() {
+        let toml = "[portals]\nfoo = \"~/foo\"";
+        let config: Config = toml::from_str(toml).unwrap();
+        assert_eq!(config.settings.default_nav_mode, NavMode::Picker);
+    }
 
     #[test]
     fn broken_portals_finds_missing_dirs() {
