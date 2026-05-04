@@ -76,7 +76,7 @@ Config lives at `~/.config/tp/config.toml`:
 
 ```toml
 [settings]
-default_nav_mode = "direct"  # "picker" (default) or "direct"
+default_nav_mode = "picker"  # "picker" or "direct"
 
 [portals]
 auth     = "~/code/authentication-service"
@@ -84,6 +84,6 @@ dotfiles = "~/dotfiles"
 notes    = "~/Documents/notes"
 ```
 
-`default_nav_mode` controls what happens when you teleport to a portal inside a multi-worktree repo. `picker` shows an fzf menu to choose a worktree; `direct` goes straight to the stored path. Override per-invocation with `-w` (picker) or `-d` (direct).
+By default, jumping to a portal in a multi-worktree repo opens a picker so you can choose which worktree to land in. If you prefer to always go straight to the stored path without being asked, set `default_nav_mode = "direct"`. You can still override on the fly: `-w` forces the picker, `-d` goes direct.
 
-You can edit the config directly (`tp -e`) or manage portals through `tp -a` and `tp -r`.
+`tp -a` and `tp -r` manage the portals section for you, but you can always edit the file directly with `tp -e`.
