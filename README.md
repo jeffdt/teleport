@@ -2,6 +2,7 @@
 
 [![CI](https://github.com/jeffdt/teleport/actions/workflows/ci.yml/badge.svg)](https://github.com/jeffdt/teleport/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Built with Rust](https://img.shields.io/badge/built_with-rust-orange.svg)](https://www.rust-lang.org)
 
 Directory portals that cut through worktree sprawl.
 
