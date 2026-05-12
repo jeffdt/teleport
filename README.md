@@ -55,18 +55,28 @@ The real power is worktree awareness. If a portal points inside a git repo with 
 
 ## Usage
 
+**Navigate**
+
 ```bash
-tp                  # fzf picker over all portals
-tp auth             # teleport by name (exact or substring match)
-tp -a auth          # add a portal for the current directory
-tp -a               # add a portal, auto-named from the directory basename
-tp -r auth          # remove a portal by name
-tp -r               # remove the portal pointing to the current directory
-tp -m auth          # skip worktree picker, go to main worktree
-tp -d auth          # skip worktree picker, go to stored path directly
-tp -c auth          # teleport then open Claude Code
+tp                  # pick a portal from a list and jump there
+tp auth             # jump to the auth portal
+tp -w auth          # jump to auth and choose a worktree
+tp -d auth          # jump to auth, skip the worktree picker
+tp -c auth          # jump to auth and open Claude Code
+```
+
+**Manage portals**
+
+```bash
+tp -a [name]        # add a portal for the current directory (auto-named if omitted)
+tp -r [name]        # remove a portal (defaults to the one for the current directory)
 tp -l               # list all portals
 tp -e               # open config in $EDITOR
+```
+
+**Maintenance**
+
+```bash
 tp -p               # find broken portals (dry-run)
 tp -p -f            # remove broken portals
 ```
