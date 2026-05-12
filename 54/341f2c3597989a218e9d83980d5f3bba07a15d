@@ -1,0 +1,19 @@
+README.md
+  s_ac2b0f7756b10c::t_55eef7f70f210b 58-69,71-72,75-79
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.1",
+  "base_commit_sha": "54341f2c3597989a218e9d83980d5f3bba07a15d",
+  "prompts": {},
+  "sessions": {
+    "s_ac2b0f7756b10c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fdee88ac-fe6a-45b5-9ddf-335a40e4e1be",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "jeffdt <jeffdt@gmail.com>"
+    }
+  }
+}
