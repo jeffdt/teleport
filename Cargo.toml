@@ -2,6 +2,10 @@
 name = "tp-core"
 version = "0.3.0"
 edition = "2021"
+description = "Directory teleportation with worktree-aware bookmarks"
+license = "MIT"
+repository = "https://github.com/jeffdt/teleport"
+authors = ["Jeff DiTeodoro"]
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }
