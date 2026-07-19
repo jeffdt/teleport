@@ -52,7 +52,7 @@ struct Cli {
     #[arg(short = 'c', long = "claude", conflicts_with_all = ["add", "remove", "list", "edit", "prune"])]
     claude: bool,
 
-    /// Portal name or teleport query
+    /// Portal name, teleport query, or "." for the current repo's worktree picker
     name: Option<String>,
 }
 
@@ -65,6 +65,10 @@ impl Cli {
         } else {
             default
         }
+    }
+
+    fn is_current_dir(&self) -> bool {
+        self.name.as_deref() == Some(".")
     }
 }
 
@@ -321,7 +325,12 @@ fn main() {
         cmd_prune(&mut config, cli.force);
     } else if let Some(ref name) = cli.name {
         let mode = cli.worktree_mode(config.settings.default_nav_mode);
-        cmd_teleport(&config, name, mode, cli.claude);
+        if cli.is_current_dir() {
+            let cwd = resolve::logical_cwd();
+            teleport_to_portal(".", &cwd.display().to_string(), mode, cli.claude);
+        } else {
+            cmd_teleport(&config, name, mode, cli.claude);
+        }
     } else {
         cmd_pick(&config);
     }
@@ -359,6 +368,24 @@ mod tests {
     fn m_flag_is_rejected() {
         let result = Cli::try_parse_from(["tp-core", "-m", "myportal"]);
         assert!(result.is_err(), "-m flag should not be accepted");
+    }
+
+    #[test]
+    fn is_current_dir_true_for_dot() {
+        let cli = Cli::try_parse_from(["tp-core", "."]).unwrap();
+        assert!(cli.is_current_dir());
+    }
+
+    #[test]
+    fn is_current_dir_false_for_portal_name() {
+        let cli = Cli::try_parse_from(["tp-core", "myportal"]).unwrap();
+        assert!(!cli.is_current_dir());
+    }
+
+    #[test]
+    fn is_current_dir_false_when_no_name() {
+        let cli = Cli::try_parse_from(["tp-core"]).unwrap();
+        assert!(!cli.is_current_dir());
     }
 
     #[test]
