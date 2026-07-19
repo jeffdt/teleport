@@ -60,6 +60,7 @@ The real power is worktree awareness. If a portal points inside a git repo with 
 ```bash
 tp                  # pick a portal from a list and jump there
 tp auth             # jump to the auth portal
+tp .                # open the worktree picker for the repo you're standing in
 tp -w auth          # jump to auth and choose a worktree
 tp -d auth          # jump to auth, skip the worktree picker
 tp -c auth          # jump to auth and open Claude Code
