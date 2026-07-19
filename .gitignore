@@ -1,3 +1,8 @@
 /target
 .envrc
-CLAUDE.local.md
+*.local.md
+
+/specs
+/plans
+/.superpowers
+/.claude
