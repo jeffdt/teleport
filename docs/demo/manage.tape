@@ -18,7 +18,7 @@ Output "docs/images/manage.gif"
 
 Set Shell zsh
 Set FontSize 14
-Set Width 1200
+Set Width 520
 Set Height 750
 Set Theme "Tomorrow Night"
 Set TypingSpeed 55ms
