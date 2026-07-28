@@ -58,21 +58,21 @@ release.
 Shipped changes reach `main` via PR, and the version bump rides in that PR.
 Once it has merged, cut the tag and update the tap. The tap is a separate
 repo, `jeffdt/homebrew-tap`; clone it if it isn't already checked out.
-`.claude/skills/cutting-a-release/release.sh` expects it at
+`$CLAUDE_PLUGIN_ROOT/skills/cutting-a-release/release.sh` expects it at
 `~/code/homebrew-tap`; set `TP_TAP_DIR` if it lives elsewhere.
 
-`.claude/skills/cutting-a-release/release.sh` automates the mechanical
-steps:
+`$CLAUDE_PLUGIN_ROOT/skills/cutting-a-release/release.sh` (from the
+`tui-utils` Claude Code plugin) automates the mechanical steps:
 
 1. On the feature branch, before opening the PR:
-   `.claude/skills/cutting-a-release/release.sh bump <patch|minor|major>`.
-   Reads the current version from `Cargo.toml`, applies the bump, refreshes
-   `Cargo.lock` (`cargo build --release`), and commits. That commit rides in
-   the PR as usual. Picking `patch` vs `minor` vs `major` is the one call
-   the script doesn't make for you -- same judgment as always (a bug fix is
-   patch, new user-facing behavior like `tp .` is minor).
+   `$CLAUDE_PLUGIN_ROOT/skills/cutting-a-release/release.sh bump
+   <patch|minor|major>`. Reads the current version from `Cargo.toml`, applies
+   the bump, refreshes `Cargo.lock` (`cargo build --release`), and commits.
+   That commit rides in the PR as usual. Picking `patch` vs `minor` vs `major`
+   is the one call the script doesn't make for you -- same judgment as always
+   (a bug fix is patch, new user-facing behavior like `tp .` is minor).
 2. After the PR merges: `git checkout main && git pull`, then
-   `.claude/skills/cutting-a-release/release.sh cut`. It reads the version
+   `$CLAUDE_PLUGIN_ROOT/skills/cutting-a-release/release.sh cut`. It reads the version
    already on `main` (no bump decision left -- that was step 1), tags and
    pushes `vX.Y.Z`, waits for
    `release.yml` (which builds and attaches a single asset named
