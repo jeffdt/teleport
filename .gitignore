@@ -1,6 +1,7 @@
 /target
 .envrc
 *.local.md
+/examples/mockup.rs
 
 /specs
 /plans
