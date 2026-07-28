@@ -141,6 +141,19 @@ fn find_matching_portals<'a>(config: &'a Config, query: &str) -> Vec<(&'a String
         .collect()
 }
 
+/// Find portals whose path is a strict descendant of `dir` (not an exact match).
+fn find_portals_under(config: &Config, dir: &std::path::Path) -> std::collections::BTreeMap<String, String> {
+    config
+        .portals
+        .iter()
+        .filter(|(_, path)| {
+            let expanded = resolve::expand_tilde(path);
+            expanded != dir && expanded.starts_with(dir)
+        })
+        .map(|(name, path)| (name.clone(), path.clone()))
+        .collect()
+}
+
 fn cmd_teleport(config: &Config, query: &str, mode: NavMode, claude: bool) {
     if let Some(path) = config.portals.get(query) {
         teleport_to_portal(query, path, mode, claude);
@@ -463,5 +476,63 @@ mod tests {
             .collect();
 
         assert_eq!(matches.len(), 2);
+    }
+
+    #[test]
+    fn find_portals_under_matches_strict_subdir() {
+        let mut config = Config::default();
+        config.portals.insert("api".to_string(), "/home/jeff/code/monorepo/services/api".to_string());
+        config.portals.insert("notes".to_string(), "/home/jeff/Documents/notes".to_string());
+
+        let dir = std::path::Path::new("/home/jeff/code/monorepo");
+        let matches = find_portals_under(&config, dir);
+
+        assert_eq!(matches.len(), 1);
+        assert!(matches.contains_key("api"));
+    }
+
+    #[test]
+    fn find_portals_under_excludes_exact_cwd_match() {
+        let mut config = Config::default();
+        config.portals.insert("monorepo".to_string(), "/home/jeff/code/monorepo".to_string());
+
+        let dir = std::path::Path::new("/home/jeff/code/monorepo");
+        let matches = find_portals_under(&config, dir);
+
+        assert!(matches.is_empty());
+    }
+
+    #[test]
+    fn find_portals_under_excludes_sibling_with_shared_prefix() {
+        let mut config = Config::default();
+        config.portals.insert("foo2".to_string(), "/home/jeff/code/foo2".to_string());
+
+        let dir = std::path::Path::new("/home/jeff/code/foo");
+        let matches = find_portals_under(&config, dir);
+
+        assert!(matches.is_empty());
+    }
+
+    #[test]
+    fn find_portals_under_empty_when_no_match() {
+        let mut config = Config::default();
+        config.portals.insert("notes".to_string(), "/home/jeff/Documents/notes".to_string());
+
+        let dir = std::path::Path::new("/home/jeff/code/monorepo");
+        let matches = find_portals_under(&config, dir);
+
+        assert!(matches.is_empty());
+    }
+
+    #[test]
+    fn find_portals_under_resolves_tilde_paths() {
+        let mut config = Config::default();
+        config.portals.insert("api".to_string(), "~/code/monorepo/services/api".to_string());
+
+        let dir = resolve::expand_tilde("~/code/monorepo");
+        let matches = find_portals_under(&config, &dir);
+
+        assert_eq!(matches.len(), 1);
+        assert!(matches.contains_key("api"));
     }
 }
