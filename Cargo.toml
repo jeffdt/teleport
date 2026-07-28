@@ -7,6 +7,9 @@ license = "MIT"
 repository = "https://github.com/jeffdt/teleport"
 authors = ["Jeff DiTeodoro"]
 
+[package.metadata.tui-utils]
+formula_name = "tp"
+
 [dependencies]
 clap = { version = "4", features = ["derive"] }
 serde = { version = "1", features = ["derive"] }
