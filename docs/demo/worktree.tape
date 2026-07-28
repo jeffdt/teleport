@@ -20,17 +20,16 @@
 # ~/Downloads to the feature worktree, which proves the claim with no
 # narration.
 #
-# Picker order as seeded (verified by hand, see the plan's Task 2 Step 5):
-#   ~/code/authentication-service                (main)
-#   ~/code/authentication-service.feature-oauth
-#   ~/code/authentication-service.pr-review
+# Picker order as seeded (verified by hand, see the plan's Task 2 Step 5).
+# See the inline comment above `Down` below for the exact rows and why one
+# Down is correct.
 
 Output "docs/images/worktree.gif"
 
 Set Shell zsh
 Set FontSize 14
 Set Width 1200
-Set Height 600
+Set Height 300
 Set Theme "Tomorrow Night"
 Set TypingSpeed 55ms
 
