@@ -18,9 +18,21 @@ Hide
 Type "exec zsh -f"
 Enter
 Sleep 500ms
-Type "TP_REPO=$PWD; export HOME=$($TP_REPO/docs/demo/seed-demo.sh); export PATH=$TP_REPO/target/release:$PATH"
+Type 'unset FZF_DEFAULT_OPTS FZF_DEFAULT_COMMAND'
+Enter
+Sleep 200ms
+Type 'TP_REPO=$PWD; export HOME=$($TP_REPO/docs/demo/seed-demo.sh) || exit 1'
 Enter
 Sleep 2s
+Type '[ -d "$HOME/code" ] || exit 1'
+Enter
+Sleep 200ms
+Type '[ -x "$TP_REPO/target/release/tp-core" ] || exit 1'
+Enter
+Sleep 200ms
+Type 'export PATH=$TP_REPO/target/release:$PATH'
+Enter
+Sleep 200ms
 Type 'eval "$(tp-core --init zsh)"'
 Enter
 Sleep 400ms

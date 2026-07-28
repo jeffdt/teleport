@@ -25,7 +25,7 @@ Two components that split along a hard boundary: a subprocess cannot change the 
 - **Portal**: a named bookmark to any directory. Stored as `name = "~/path"` under `[portals]` in config.
 - **Substring matching**: `tp <query>` tries exact name match first, then case-insensitive substring across names and paths. Single match teleports directly; multiple matches open an fzf picker.
 - **Worktree awareness**: if a portal's path is inside a git repo with multiple worktrees, tp shows a picker to choose which worktree to resolve through. `-m` skips the picker and goes to the main worktree; `-d` skips it and goes to the stored path directly.
-- **Config path**: `~/.config/tp/portals.toml`. Uses `dirs::home_dir().join(".config")` (XDG style), not `dirs::config_dir()` (which returns `~/Library/Application Support` on macOS).
+- **Config path**: `~/.config/tp/config.toml`. Uses `dirs::home_dir().join(".config")` (XDG style), not `dirs::config_dir()` (which returns `~/Library/Application Support` on macOS).
 
 ## Key gotchas
 
@@ -107,8 +107,11 @@ and updating `release.sh`'s asset handling.
 
 ## Regenerating the README demo GIFs
 
-The README's three demo GIFs are generated, not hand-recorded. From the repo
-root:
+The README's three demo GIFs are generated, not hand-recorded.
+
+Prerequisites: `cargo`, plus `vhs` and `fzf` (`brew install vhs fzf`).
+
+From the repo root:
 
 ```bash
 cargo build --release      # tapes record target/release/tp-core

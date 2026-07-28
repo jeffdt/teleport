@@ -8,7 +8,7 @@ Directory portals that cut through worktree sprawl.
 
 ## Demo
 
-Add a portal for the current directory, then jump to it from anywhere. If the repo has multiple worktrees, tp lets you pick one:
+Jump to a portal from anywhere. If the repo has multiple worktrees, tp lets you pick one:
 
 ![Jumping to the auth portal from an unrelated directory: tp shows the repo's three worktrees, and selecting the feature-oauth one lands the shell inside it](docs/images/worktree.gif)
 
