@@ -19,7 +19,13 @@
 # below must pass one inline or the commits fail outright.
 set -euo pipefail
 
-home=$(mktemp -d)
+# `cd ... && pwd -P` resolves the scratch dir to its physical path. On macOS
+# mktemp -d hands back /var/folders/..., but /var is a symlink to /private/var,
+# and `git worktree list` reports canonicalized paths. Without this, $HOME and
+# git disagree, tp's collapse_tilde cannot strip the prefix, and the worktree
+# picker renders raw /private/var/folders/... paths on screen instead of
+# ~/code/... entries.
+home=$(cd "$(mktemp -d)" && pwd -P)
 export HOME="$home"
 
 git_demo() {
@@ -68,13 +74,19 @@ web      = "~/code/web-dashboard"
 docs     = "~/code/docs-site"
 dotfiles = "~/dotfiles"
 notes    = "~/Documents/notes"
-payments = "~/code/payments-service"
-spike    = "~/code/spike-oauth"
+payments = "~/archive/payments-service"
+spike    = "~/archive/spike-oauth"
 EOF
 
 # payments and spike point at directories that are never created, so `tp -p`
 # has two corpses to find. Two rather than one so the swept output reads as
 # plural.
+#
+# They sit under ~/archive rather than ~/code on purpose. `-u` is a pure path
+# prefix match with no existence check (src/main.rs), so broken portals under
+# ~/code would pass the filter and `tp -l -u` would return five rows instead
+# of the three under-cwd.tape is built around. ~/archive itself is never
+# created either; only the paths' prefix matters here.
 
 # The tapes run `zsh -f` (no rc files, so a themed prompt cannot fight
 # `Set Theme`), which means the prompt must be set explicitly. It is written
