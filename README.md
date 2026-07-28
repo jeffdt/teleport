@@ -8,27 +8,9 @@ Directory portals that cut through worktree sprawl.
 
 ## Demo
 
-Add a portal for the current directory:
+Add a portal for the current directory, then jump to it from anywhere. If the repo has multiple worktrees, tp lets you pick one:
 
-```bash
-> ~/code/authentication-service
-$ tp -a auth
-Added portal 'auth'
-```
-
-Then jump to it from anywhere -- if the repo has multiple worktrees, tp picks one:
-
-```bash
-> ~/Downloads
-$ tp auth
-Select worktree:
-  3/3
-| ~/code/authentication-service.feature-oauth
-  ~/code/authentication-service                 (main)
-  ~/code/authentication-service.pr-review
-```
-
-<!-- gif: worktree picker in action -->
+![Jumping to the auth portal from an unrelated directory: tp shows the repo's three worktrees, and selecting the feature-oauth one lands the shell inside it](docs/images/worktree.gif)
 
 ## Install
 
@@ -68,6 +50,8 @@ tp -u               # pick a portal nested under the current directory
 tp -l -u            # list portals nested under the current directory
 ```
 
+![Running tp -l from the home directory lists every portal, then tp -l -u from inside ~/code narrows it to just the three nested there, and tp -u picks from that shortlist](docs/images/under-cwd.gif)
+
 **Manage portals**
 
 ```bash
@@ -76,6 +60,8 @@ tp -r [name]        # remove a portal (defaults to the one for the current direc
 tp -l               # list all portals
 tp -e               # open config in $EDITOR
 ```
+
+![Adding a portal for the current directory with tp -a, listing portals to see it, then finding two portals whose directories no longer exist and sweeping them with tp -p -f](docs/images/manage.gif)
 
 **Maintenance**
 

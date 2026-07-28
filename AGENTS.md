@@ -104,3 +104,37 @@ formula outside the script. `release.sh cut` only ever rewrites the `url` and
 Currently Apple Silicon only. Supporting Intel means adding
 `x86_64-apple-darwin` to the release matrix, an Intel branch in the formula,
 and updating `release.sh`'s asset handling.
+
+## Regenerating the README demo GIFs
+
+The README's three demo GIFs are generated, not hand-recorded. From the repo
+root:
+
+```bash
+cargo build --release      # tapes record target/release/tp-core
+vhs docs/demo/worktree.tape
+vhs docs/demo/manage.tape
+vhs docs/demo/under-cwd.tape
+```
+
+`docs/demo/seed-demo.sh` runs automatically from inside each tape. It mints a
+throwaway `$HOME` with fake repos, real git worktrees, and a seeded portal
+config, then prints the path. All three tapes seed identically, so the GIFs
+read as the same machine.
+
+**The seed data is load-bearing.** Two portals deliberately sit outside
+`~/code` so `-u` has something to filter out, and two deliberately point at
+directories that are never created so prune has something to find. Tidying
+either away silently stops the demos from demonstrating anything.
+
+Redirecting `HOME` is what isolates tp's config and its tilde display at once
+(both go through `dirs::home_dir()`), which is also why on-screen paths render
+as clean `~/code/...` entries. It also strips git's global config, so every
+git call in the seed script passes its committer identity inline.
+
+After rendering, watch each GIF with `qlmanage -p docs/images/<name>.gif &`.
+Preview.app shows only a static first frame and is not a substitute.
+
+See the `vhs-recording` skill for the general recording workflow. That skill
+is subtree-vendored from `~/code/tui-utils` and shared with rolomux,
+boomerang, and backlog: fix it there, never here.
