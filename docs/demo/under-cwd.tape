@@ -14,7 +14,7 @@ Output "docs/images/under-cwd.gif"
 
 Set Shell zsh
 Set FontSize 14
-Set Width 1200
+Set Width 600
 Set Height 620
 Set Theme "Tomorrow Night"
 Set TypingSpeed 55ms

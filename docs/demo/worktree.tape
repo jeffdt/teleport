@@ -28,7 +28,7 @@ Output "docs/images/worktree.gif"
 
 Set Shell zsh
 Set FontSize 14
-Set Width 1200
+Set Width 650
 Set Height 300
 Set Theme "Tomorrow Night"
 Set TypingSpeed 55ms
