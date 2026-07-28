@@ -64,6 +64,8 @@ tp .                # open the worktree picker for the repo you're standing in
 tp -w auth          # jump to auth and choose a worktree
 tp -d auth          # jump to auth, skip the worktree picker
 tp -c auth          # jump to auth and open Claude Code
+tp -u               # pick a portal nested under the current directory
+tp -l -u            # list portals nested under the current directory
 ```
 
 **Manage portals**
