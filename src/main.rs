@@ -13,11 +13,11 @@ use resolve::{portal_worktree_context, sorted_worktrees};
 #[command(name = "tp-core", version, about = "Engine for tp (teleport)")]
 struct Cli {
     /// Add a portal for the current directory
-    #[arg(short = 'a', long = "add", conflicts_with_all = ["remove", "list", "edit", "prune"])]
+    #[arg(short = 'a', long = "add", conflicts_with_all = ["remove", "list", "edit", "prune", "under"])]
     add: bool,
 
     /// Remove a portal
-    #[arg(short = 'r', long = "rm", conflicts_with_all = ["add", "list", "edit", "prune"])]
+    #[arg(short = 'r', long = "rm", conflicts_with_all = ["add", "list", "edit", "prune", "under"])]
     remove: bool,
 
     /// List all portals
@@ -25,16 +25,20 @@ struct Cli {
     list: bool,
 
     /// Open config in editor
-    #[arg(short = 'e', long = "edit", conflicts_with_all = ["add", "remove", "list", "prune"])]
+    #[arg(short = 'e', long = "edit", conflicts_with_all = ["add", "remove", "list", "prune", "under"])]
     edit: bool,
 
     /// Find and remove broken portals (dry-run by default, use with -f to remove)
-    #[arg(short = 'p', long = "prune", conflicts_with_all = ["add", "remove", "list", "edit"])]
+    #[arg(short = 'p', long = "prune", conflicts_with_all = ["add", "remove", "list", "edit", "under"])]
     prune: bool,
 
     /// Actually remove broken portals (use with -p)
     #[arg(short = 'f', long = "force", requires = "prune")]
     force: bool,
+
+    /// List/pick portals nested under the current directory
+    #[arg(short = 'u', long = "under", conflicts_with_all = ["add", "remove", "edit", "prune"])]
+    under: bool,
 
     /// Print shell integration code for the given shell
     #[arg(long)]
@@ -308,6 +312,33 @@ fn cmd_ls(config: &Config) {
     }
 }
 
+fn cmd_under(config: &Config, mode: NavMode, claude: bool) {
+    let cwd = resolve::logical_cwd();
+    let matches = find_portals_under(config, &cwd);
+
+    if matches.is_empty() {
+        println!("No portals found under {}", resolve::collapse_tilde(&cwd));
+        return;
+    }
+
+    pick_and_teleport(&matches, mode, claude);
+}
+
+fn cmd_ls_under(config: &Config) {
+    let cwd = resolve::logical_cwd();
+    let matches = find_portals_under(config, &cwd);
+
+    if matches.is_empty() {
+        println!("No portals found under {}", resolve::collapse_tilde(&cwd));
+        return;
+    }
+
+    let entries = fzf::format_portal_entries(&matches, "");
+    for (display, _) in &entries {
+        println!("{}", display);
+    }
+}
+
 fn main() {
     let cli = Cli::parse();
 
@@ -330,8 +361,13 @@ fn main() {
         cmd_add(&mut config, cli.name);
     } else if cli.remove {
         cmd_rm(&mut config, cli.name);
+    } else if cli.list && cli.under {
+        cmd_ls_under(&config);
     } else if cli.list {
         cmd_ls(&config);
+    } else if cli.under {
+        let mode = cli.worktree_mode(config.settings.default_nav_mode);
+        cmd_under(&config, mode, cli.claude);
     } else if cli.edit {
         cmd_edit();
     } else if cli.prune {
@@ -399,6 +435,49 @@ mod tests {
     fn is_current_dir_false_when_no_name() {
         let cli = Cli::try_parse_from(["tp-core"]).unwrap();
         assert!(!cli.is_current_dir());
+    }
+
+    #[test]
+    fn under_flag_short_parses() {
+        let cli = Cli::try_parse_from(["tp-core", "-u"]).unwrap();
+        assert!(cli.under);
+    }
+
+    #[test]
+    fn under_flag_long_parses() {
+        let cli = Cli::try_parse_from(["tp-core", "--under"]).unwrap();
+        assert!(cli.under);
+    }
+
+    #[test]
+    fn under_conflicts_with_add() {
+        let result = Cli::try_parse_from(["tp-core", "-u", "-a"]);
+        assert!(result.is_err(), "-u and -a should conflict");
+    }
+
+    #[test]
+    fn under_conflicts_with_remove() {
+        let result = Cli::try_parse_from(["tp-core", "-u", "-r"]);
+        assert!(result.is_err(), "-u and -r should conflict");
+    }
+
+    #[test]
+    fn under_conflicts_with_edit() {
+        let result = Cli::try_parse_from(["tp-core", "-u", "-e"]);
+        assert!(result.is_err(), "-u and -e should conflict");
+    }
+
+    #[test]
+    fn under_conflicts_with_prune() {
+        let result = Cli::try_parse_from(["tp-core", "-u", "-p"]);
+        assert!(result.is_err(), "-u and -p should conflict");
+    }
+
+    #[test]
+    fn under_and_list_parse_together() {
+        let cli = Cli::try_parse_from(["tp-core", "-l", "-u"]).unwrap();
+        assert!(cli.list);
+        assert!(cli.under);
     }
 
     #[test]
