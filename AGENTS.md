@@ -2,6 +2,17 @@
 
 Directory teleportation tool with worktree-aware bookmarks called **portals**.
 
+## Claude Code plugin
+
+Shared skills (`mockup`, `vhs-recording`, `cutting-a-release`, `live-preview`)
+come from the `tui-utils` plugin (github.com/jeffdt/tui-utils), not this
+repo. One-time per machine:
+
+```
+/plugin marketplace add jeffdt/tui-utils
+/plugin install tui-utils@tui-utils
+```
+
 ## Architecture
 
 Two components that split along a hard boundary: a subprocess cannot change the parent shell's working directory.
