@@ -1,4 +1,4 @@
-# tp
+# teleport
 
 [![CI](https://github.com/jeffdt/teleport/actions/workflows/ci.yml/badge.svg)](https://github.com/jeffdt/teleport/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
@@ -8,7 +8,7 @@ Directory portals that cut through worktree sprawl.
 
 ## Demo
 
-Jump to a portal from anywhere. If the repo has multiple worktrees, tp lets you pick one:
+teleport (aka `tp`) lets you zip around your shell by dropping portals wherever you work the most. Once you drop a portal, you can jump to it from anywhere. If your target is a repo with multiple worktrees, you can pick which one to teleport to:
 
 ![Jumping to the auth portal from an unrelated directory: tp shows the repo's three worktrees, and selecting the feature-oauth one lands the shell inside it](docs/images/worktree.gif)
 
@@ -33,7 +33,7 @@ eval "$(tp-core --init zsh)"
 
 **Portals** are named shortcuts to directories. `tp -a <name>` drops one wherever you are; `tp <name>` takes you there from anywhere. Type just `tp` to open a fuzzy picker, or a partial name to narrow it down.
 
-The real power is worktree awareness. If a portal points inside a git repo with multiple worktrees -- common when running parallel agents or juggling feature branches -- tp shows a picker so you land in the right one. One portal per repo, not one per worktree.
+The real power is worktree awareness. If a portal points inside a git repo with multiple worktrees (common when running parallel agents or juggling feature branches) tp shows a picker so you land in the right one. You only need to maintain one portal for the repo; it detects all worktrees.
 
 ## Usage
 
@@ -47,7 +47,6 @@ tp -w auth          # jump to auth and choose a worktree
 tp -d auth          # jump to auth, skip the worktree picker
 tp -c auth          # jump to auth and open Claude Code
 tp -u               # pick a portal nested under the current directory
-tp -l -u            # list portals nested under the current directory
 ```
 
 ![Running tp -l from the home directory lists every portal, then tp -l -u from inside ~/code narrows it to just the three nested there, and tp -u picks from that shortlist](docs/images/under-cwd.gif)
@@ -58,6 +57,7 @@ tp -l -u            # list portals nested under the current directory
 tp -a [name]        # add a portal for the current directory (auto-named if omitted)
 tp -r [name]        # remove a portal (defaults to the one for the current directory)
 tp -l               # list all portals
+tp -l -u            # list portals nested under the current directory
 tp -e               # open config in $EDITOR
 ```
 
