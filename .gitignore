@@ -1,13 +1,13 @@
 /target
 .envrc
-*.local.md
-/examples/mockup.rs
 
-/specs
 /plans
+/specs
 /.superpowers
+/examples/mockup.rs
+*.local.md
 
-.claude/local
-.claude/worktrees
-.claude/settings.local.json
-.claude/scheduled_tasks.lock
+/.claude/local
+/.claude/settings.local.json
+/.claude/scheduled_tasks.lock
+/.claude/worktrees
