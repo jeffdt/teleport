@@ -40,6 +40,10 @@ struct Cli {
     #[arg(short = 'u', long = "under", conflicts_with_all = ["add", "remove", "edit", "prune"])]
     under: bool,
 
+    /// Sort listed portals by directory path instead of portal name
+    #[arg(short = 's', long = "sort-dir", requires = "list")]
+    sort_dir: bool,
+
     /// Print shell integration code for the given shell
     #[arg(long)]
     init: Option<String>,
@@ -120,7 +124,7 @@ fn pick_and_teleport(
     mode: NavMode,
     claude: bool,
 ) {
-    let entries = fzf::format_portal_entries(portals, "* ");
+    let entries = fzf::format_portal_entries(portals, "* ", false);
     let display_lines: Vec<String> = entries.iter().map(|(d, _)| d.clone()).collect();
     match fzf::pick(&display_lines, "Teleport:") {
         Some(idx) => {
@@ -300,13 +304,13 @@ fn cmd_prune(config: &mut Config, force: bool) {
     }
 }
 
-fn cmd_ls(config: &Config) {
+fn cmd_ls(config: &Config, sort_by_path: bool) {
     if config.portals.is_empty() {
         println!("No portals configured. Use 'tp -a <name>' to create one.");
         return;
     }
 
-    let entries = fzf::format_portal_entries(&config.portals, "");
+    let entries = fzf::format_portal_entries(&config.portals, "", sort_by_path);
     for (display, _) in &entries {
         println!("{}", display);
     }
@@ -324,7 +328,7 @@ fn cmd_under(config: &Config, mode: NavMode, claude: bool) {
     pick_and_teleport(&matches, mode, claude);
 }
 
-fn cmd_ls_under(config: &Config) {
+fn cmd_ls_under(config: &Config, sort_by_path: bool) {
     let cwd = resolve::logical_cwd();
     let matches = find_portals_under(config, &cwd);
 
@@ -333,7 +337,7 @@ fn cmd_ls_under(config: &Config) {
         return;
     }
 
-    let entries = fzf::format_portal_entries(&matches, "");
+    let entries = fzf::format_portal_entries(&matches, "", sort_by_path);
     for (display, _) in &entries {
         println!("{}", display);
     }
@@ -362,9 +366,9 @@ fn main() {
     } else if cli.remove {
         cmd_rm(&mut config, cli.name);
     } else if cli.list && cli.under {
-        cmd_ls_under(&config);
+        cmd_ls_under(&config, cli.sort_dir);
     } else if cli.list {
-        cmd_ls(&config);
+        cmd_ls(&config, cli.sort_dir);
     } else if cli.under {
         let mode = cli.worktree_mode(config.settings.default_nav_mode);
         cmd_under(&config, mode, cli.claude);
@@ -478,6 +482,27 @@ mod tests {
         let cli = Cli::try_parse_from(["tp-core", "-l", "-u"]).unwrap();
         assert!(cli.list);
         assert!(cli.under);
+    }
+
+    #[test]
+    fn sort_dir_requires_list() {
+        let result = Cli::try_parse_from(["tp-core", "-s"]);
+        assert!(result.is_err(), "-s without -l should be rejected");
+    }
+
+    #[test]
+    fn sort_dir_with_list_parses() {
+        let cli = Cli::try_parse_from(["tp-core", "-l", "-s"]).unwrap();
+        assert!(cli.list);
+        assert!(cli.sort_dir);
+    }
+
+    #[test]
+    fn sort_dir_with_list_and_under_parses() {
+        let cli = Cli::try_parse_from(["tp-core", "-l", "-u", "-s"]).unwrap();
+        assert!(cli.list);
+        assert!(cli.under);
+        assert!(cli.sort_dir);
     }
 
     #[test]
