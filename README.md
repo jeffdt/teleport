@@ -101,3 +101,22 @@ notes    = "~/Documents/notes"
 By default, jumping to a portal in a multi-worktree repo opens a picker so you can choose which worktree to land in. If you prefer to always go straight to the stored path without being asked, set `default_nav_mode = "direct"`. You can still override on the fly: `-w` forces the picker, `-d` goes direct.
 
 `tp -a` and `tp -r` manage the portals section for you, but you can always edit the file directly with `tp -e`.
+
+## Development
+
+```sh
+cargo build
+cargo test
+cargo run -- <args>   # test tp-core without installing
+```
+
+This repo also ships two Claude Code skills for working on it visually:
+`mockup`, for comparing ANSI mockups of a design change before
+implementing it, and `live-preview`, for popping the freshly built binary
+open in a real tmux window once a feature is done. Both come from the
+`tui-utils` plugin:
+
+```
+/plugin marketplace add jeffdt/tui-utils
+/plugin install tui-utils@tui-utils
+```
