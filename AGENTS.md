@@ -138,6 +138,6 @@ git call in the seed script passes its committer identity inline.
 After rendering, watch each GIF with `qlmanage -p docs/images/<name>.gif &`.
 Preview.app shows only a static first frame and is not a substitute.
 
-See the `vhs-recording` skill for the general recording workflow. That skill
-is subtree-vendored from `~/code/tui-utils` and shared with rolomux,
-boomerang, and backlog: fix it there, never here.
+See the `vhs-recording` skill for the general recording workflow. It comes
+from the `tui-utils` plugin (see the top of this file) and is shared with
+rolomux, boomerang, and backlog: fix it there, never here.
