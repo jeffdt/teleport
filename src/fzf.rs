@@ -12,6 +12,7 @@ const MAX_DISPLAYED_NAMES: usize = 3;
 pub fn format_portal_entries(
     portals: &std::collections::BTreeMap<String, String>,
     prefix: &str,
+    sort_by_path: bool,
 ) -> Vec<(String, String)> {
     let mut by_path: std::collections::BTreeMap<&str, Vec<&str>> =
         std::collections::BTreeMap::new();
@@ -34,7 +35,11 @@ pub fn format_portal_entries(
             (display_names, path.to_string(), key)
         })
         .collect();
-    grouped.sort_by(|a, b| a.2.cmp(&b.2));
+    if sort_by_path {
+        grouped.sort_by(|a, b| a.1.cmp(&b.1));
+    } else {
+        grouped.sort_by(|a, b| a.2.cmp(&b.2));
+    }
 
     let name_width = grouped.iter().map(|(dn, _, _)| dn.len()).max().unwrap_or(0);
 
@@ -135,10 +140,40 @@ mod tests {
             .into_iter()
             .collect();
 
-        let entries = format_portal_entries(&portals, "* ");
+        let entries = format_portal_entries(&portals, "* ", false);
         assert_eq!(entries.len(), 1);
         assert!(entries[0].0.contains("*"));
         assert!(entries[0].0.contains("notes"));
+    }
+
+    #[test]
+    fn portal_entries_sorted_by_path_when_requested() {
+        let portals = [
+            ("zeta".to_string(), "~/aaa/zeta".to_string()),
+            ("alpha".to_string(), "~/zzz/alpha".to_string()),
+        ]
+        .into_iter()
+        .collect();
+
+        let entries = format_portal_entries(&portals, "", true);
+        assert_eq!(entries.len(), 2);
+        assert!(entries[0].0.contains("zeta"), "path ~/aaa/zeta should sort first");
+        assert!(entries[1].0.contains("alpha"), "path ~/zzz/alpha should sort second");
+    }
+
+    #[test]
+    fn portal_entries_sorted_by_name_by_default() {
+        let portals = [
+            ("zeta".to_string(), "~/aaa/zeta".to_string()),
+            ("alpha".to_string(), "~/zzz/alpha".to_string()),
+        ]
+        .into_iter()
+        .collect();
+
+        let entries = format_portal_entries(&portals, "", false);
+        assert_eq!(entries.len(), 2);
+        assert!(entries[0].0.contains("alpha"), "name alpha should sort first");
+        assert!(entries[1].0.contains("zeta"), "name zeta should sort second");
     }
 
     #[test]
@@ -188,7 +223,7 @@ mod tests {
         .into_iter()
         .collect();
 
-        let entries = format_portal_entries(&portals, "* ");
+        let entries = format_portal_entries(&portals, "* ", false);
         assert_eq!(entries.len(), 2);
 
         let grouped = entries.iter().find(|(d, _)| d.contains("insights")).unwrap();
@@ -213,7 +248,7 @@ mod tests {
         .into_iter()
         .collect();
 
-        let entries = format_portal_entries(&portals, "* ");
+        let entries = format_portal_entries(&portals, "* ", false);
         assert_eq!(entries.len(), 1);
         let display = &entries[0].0;
         assert!(display.contains("a, b, c"));

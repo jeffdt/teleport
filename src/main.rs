@@ -120,7 +120,7 @@ fn pick_and_teleport(
     mode: NavMode,
     claude: bool,
 ) {
-    let entries = fzf::format_portal_entries(portals, "* ");
+    let entries = fzf::format_portal_entries(portals, "* ", false);
     let display_lines: Vec<String> = entries.iter().map(|(d, _)| d.clone()).collect();
     match fzf::pick(&display_lines, "Teleport:") {
         Some(idx) => {
@@ -306,7 +306,7 @@ fn cmd_ls(config: &Config) {
         return;
     }
 
-    let entries = fzf::format_portal_entries(&config.portals, "");
+    let entries = fzf::format_portal_entries(&config.portals, "", false);
     for (display, _) in &entries {
         println!("{}", display);
     }
@@ -333,7 +333,7 @@ fn cmd_ls_under(config: &Config) {
         return;
     }
 
-    let entries = fzf::format_portal_entries(&matches, "");
+    let entries = fzf::format_portal_entries(&matches, "", false);
     for (display, _) in &entries {
         println!("{}", display);
     }
