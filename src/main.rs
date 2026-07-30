@@ -216,6 +216,22 @@ fn find_portals_at(config: &Config, dir: &Path) -> std::collections::BTreeMap<St
     }
 }
 
+/// Resolve a `-l` location argument to an absolute directory: `.` means the
+/// current directory; anything else is tilde-expanded and, if still
+/// relative, joined onto `cwd`.
+fn resolve_location_arg(cwd: &Path, arg: &str) -> PathBuf {
+    if arg == "." {
+        return cwd.to_path_buf();
+    }
+
+    let expanded = resolve::expand_tilde(arg);
+    if expanded.is_absolute() {
+        expanded
+    } else {
+        cwd.join(expanded)
+    }
+}
+
 fn cmd_teleport(config: &Config, query: &str, mode: NavMode, claude: bool) {
     if let Some(path) = config.portals.get(query) {
         teleport_to_portal(query, path, mode, claude);
@@ -738,6 +754,33 @@ mod tests {
 
         assert_eq!(matches.len(), 1);
         assert!(matches.contains_key("api"));
+    }
+
+    #[test]
+    fn resolve_location_arg_dot_is_cwd() {
+        let cwd = PathBuf::from("/home/jeff/code/monorepo");
+        assert_eq!(resolve_location_arg(&cwd, "."), cwd);
+    }
+
+    #[test]
+    fn resolve_location_arg_absolute_path_passes_through() {
+        let cwd = PathBuf::from("/home/jeff/code/monorepo");
+        let result = resolve_location_arg(&cwd, "/etc/hosts");
+        assert_eq!(result, PathBuf::from("/etc/hosts"));
+    }
+
+    #[test]
+    fn resolve_location_arg_expands_tilde() {
+        let cwd = PathBuf::from("/home/jeff/code/monorepo");
+        let result = resolve_location_arg(&cwd, "~/Documents/notes");
+        assert_eq!(result, resolve::expand_tilde("~/Documents/notes"));
+    }
+
+    #[test]
+    fn resolve_location_arg_joins_relative_onto_cwd() {
+        let cwd = PathBuf::from("/home/jeff/code/monorepo");
+        let result = resolve_location_arg(&cwd, "services/api");
+        assert_eq!(result, PathBuf::from("/home/jeff/code/monorepo/services/api"));
     }
 
     fn git_test(repo: &std::path::Path, args: &[&str]) {
