@@ -79,6 +79,44 @@ pub fn git_worktree_list(repo_path: &Path) -> Vec<PathBuf> {
         .collect()
 }
 
+/// List a repo's worktrees, skipping the `git worktree list` call entirely
+/// when the repo has no linked worktrees (only the one at `toplevel`).
+fn worktrees_for_toplevel(toplevel: &Path) -> Vec<PathBuf> {
+    let git_path = toplevel.join(".git");
+    let may_have_worktrees = if git_path.is_dir() {
+        git_path
+            .join("worktrees")
+            .read_dir()
+            .is_ok_and(|mut d| d.next().is_some())
+    } else {
+        true
+    };
+
+    if may_have_worktrees {
+        git_worktree_list(toplevel)
+    } else {
+        vec![toplevel.to_path_buf()]
+    }
+}
+
+/// Get the worktree list for whatever repo contains `dir`, or `None` if
+/// `dir` isn't inside a git repo. `git_toplevel_for` returns the toplevel of
+/// whichever worktree `dir` is actually in, so this works the same whether
+/// `dir` is in the main worktree or a linked one.
+pub fn repo_worktrees_for(dir: &Path) -> Option<Vec<PathBuf>> {
+    let toplevel = git_toplevel_for(dir)?;
+    Some(worktrees_for_toplevel(&toplevel))
+}
+
+/// Find the worktree (if any) that contains `path`, and `path`'s location
+/// relative to that worktree's root.
+pub fn relative_to_worktree(path: &Path, worktrees: &[PathBuf]) -> Option<(PathBuf, PathBuf)> {
+    worktrees
+        .iter()
+        .find(|wt| path.starts_with(wt))
+        .map(|wt| (wt.clone(), path.strip_prefix(wt).unwrap().to_path_buf()))
+}
+
 /// Context for resolving a portal that lives inside a git repo.
 pub struct PortalContext {
     pub worktrees: Vec<PathBuf>,
@@ -101,22 +139,7 @@ pub fn portal_worktree_context(portal_path: &str) -> Option<PortalContext> {
         _ => String::new(),
     };
 
-    // Only spawn `git worktree list` if the repo actually uses worktrees.
-    let git_path = toplevel.join(".git");
-    let may_have_worktrees = if git_path.is_dir() {
-        git_path
-            .join("worktrees")
-            .read_dir()
-            .is_ok_and(|mut d| d.next().is_some())
-    } else {
-        true
-    };
-
-    let worktrees = if may_have_worktrees {
-        git_worktree_list(&toplevel)
-    } else {
-        vec![toplevel.clone()]
-    };
+    let worktrees = worktrees_for_toplevel(&toplevel);
 
     let main_wt = worktrees.first().cloned().unwrap_or_else(|| toplevel.clone());
 
@@ -264,5 +287,57 @@ mod tests {
         assert_eq!(sorted[0].path, main);
         assert!(sorted[0].is_main);
         assert!(!sorted[0].is_current);
+    }
+
+    #[test]
+    fn relative_to_worktree_root_is_empty() {
+        let wt = PathBuf::from("/repo");
+        let worktrees = vec![wt.clone()];
+
+        let (root, rel) = relative_to_worktree(&wt, &worktrees).unwrap();
+
+        assert_eq!(root, wt);
+        assert_eq!(rel, PathBuf::new());
+    }
+
+    #[test]
+    fn relative_to_worktree_nested_subdir() {
+        let wt = PathBuf::from("/repo");
+        let worktrees = vec![wt.clone()];
+        let path = PathBuf::from("/repo/services/api");
+
+        let (root, rel) = relative_to_worktree(&path, &worktrees).unwrap();
+
+        assert_eq!(root, wt);
+        assert_eq!(rel, PathBuf::from("services/api"));
+    }
+
+    #[test]
+    fn relative_to_worktree_picks_containing_worktree() {
+        let main = PathBuf::from("/repo");
+        let feature = PathBuf::from("/repo.feature-oauth");
+        let worktrees = vec![main, feature.clone()];
+        let path = PathBuf::from("/repo.feature-oauth/services/api");
+
+        let (root, rel) = relative_to_worktree(&path, &worktrees).unwrap();
+
+        assert_eq!(root, feature);
+        assert_eq!(rel, PathBuf::from("services/api"));
+    }
+
+    #[test]
+    fn relative_to_worktree_none_when_unrelated() {
+        let worktrees = vec![PathBuf::from("/repo")];
+        let path = PathBuf::from("/elsewhere/api");
+
+        assert!(relative_to_worktree(&path, &worktrees).is_none());
+    }
+
+    #[test]
+    fn relative_to_worktree_no_false_positive_on_shared_prefix() {
+        let worktrees = vec![PathBuf::from("/repo")];
+        let path = PathBuf::from("/repo2/api");
+
+        assert!(relative_to_worktree(&path, &worktrees).is_none());
     }
 }
