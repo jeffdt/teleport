@@ -193,6 +193,29 @@ fn find_portals_under(config: &Config, dir: &Path) -> std::collections::BTreeMap
     }
 }
 
+/// Find portals located at exactly `dir` (worktree-aware): a portal in a
+/// different worktree of the same repo as `dir`, at the equivalent
+/// relative path, counts as being here too.
+fn find_portals_at(config: &Config, dir: &Path) -> std::collections::BTreeMap<String, String> {
+    match worktree_location(dir) {
+        Some((worktrees, cwd_rel)) => config
+            .portals
+            .iter()
+            .filter(|(_, path)| {
+                relative_location(&resolve::expand_tilde(path), &worktrees)
+                    .is_some_and(|rel| rel == cwd_rel)
+            })
+            .map(|(name, path)| (name.clone(), path.clone()))
+            .collect(),
+        None => config
+            .portals
+            .iter()
+            .filter(|(_, path)| resolve::expand_tilde(path) == *dir)
+            .map(|(name, path)| (name.clone(), path.clone()))
+            .collect(),
+    }
+}
+
 fn cmd_teleport(config: &Config, query: &str, mode: NavMode, claude: bool) {
     if let Some(path) = config.portals.get(query) {
         teleport_to_portal(query, path, mode, claude);
@@ -666,6 +689,52 @@ mod tests {
 
         let dir = resolve::expand_tilde("~/code/monorepo");
         let matches = find_portals_under(&config, &dir);
+
+        assert_eq!(matches.len(), 1);
+        assert!(matches.contains_key("api"));
+    }
+
+    #[test]
+    fn find_portals_at_matches_exact_path() {
+        let mut config = Config::default();
+        config.portals.insert("monorepo".to_string(), "/home/jeff/code/monorepo".to_string());
+
+        let dir = Path::new("/home/jeff/code/monorepo");
+        let matches = find_portals_at(&config, dir);
+
+        assert_eq!(matches.len(), 1);
+        assert!(matches.contains_key("monorepo"));
+    }
+
+    #[test]
+    fn find_portals_at_excludes_strict_subdir() {
+        let mut config = Config::default();
+        config.portals.insert("api".to_string(), "/home/jeff/code/monorepo/services/api".to_string());
+
+        let dir = Path::new("/home/jeff/code/monorepo");
+        let matches = find_portals_at(&config, dir);
+
+        assert!(matches.is_empty());
+    }
+
+    #[test]
+    fn find_portals_at_no_match_for_unrelated_dir() {
+        let mut config = Config::default();
+        config.portals.insert("notes".to_string(), "/home/jeff/Documents/notes".to_string());
+
+        let dir = Path::new("/home/jeff/code/monorepo");
+        let matches = find_portals_at(&config, dir);
+
+        assert!(matches.is_empty());
+    }
+
+    #[test]
+    fn find_portals_at_resolves_tilde_paths() {
+        let mut config = Config::default();
+        config.portals.insert("api".to_string(), "~/code/monorepo".to_string());
+
+        let dir = resolve::expand_tilde("~/code/monorepo");
+        let matches = find_portals_at(&config, &dir);
 
         assert_eq!(matches.len(), 1);
         assert!(matches.contains_key("api"));
