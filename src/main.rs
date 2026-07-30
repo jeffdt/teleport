@@ -2,6 +2,7 @@ mod config;
 mod fzf;
 mod resolve;
 
+use std::path::{Path, PathBuf};
 use std::process;
 
 use clap::Parser;
@@ -36,7 +37,7 @@ struct Cli {
     #[arg(short = 'f', long = "force", requires = "prune")]
     force: bool,
 
-    /// List/pick portals nested under the current directory
+    /// List/pick portals nested under the current directory (worktree-aware)
     #[arg(short = 'u', long = "under", conflicts_with_all = ["add", "remove", "edit", "prune"])]
     under: bool,
 
@@ -149,17 +150,47 @@ fn find_matching_portals<'a>(config: &'a Config, query: &str) -> Vec<(&'a String
         .collect()
 }
 
-/// Find portals whose path is a strict descendant of `dir` (not an exact match).
-fn find_portals_under(config: &Config, dir: &std::path::Path) -> std::collections::BTreeMap<String, String> {
-    config
-        .portals
-        .iter()
-        .filter(|(_, path)| {
-            let expanded = resolve::expand_tilde(path);
-            expanded != dir && expanded.starts_with(dir)
-        })
-        .map(|(name, path)| (name.clone(), path.clone()))
-        .collect()
+/// Resolve `dir`'s location within its repo, worktree-aware: the repo's
+/// full worktree list, and `dir`'s path relative to whichever worktree
+/// contains it. `None` if `dir` isn't inside a git repo.
+fn worktree_location(dir: &Path) -> Option<(Vec<PathBuf>, PathBuf)> {
+    let worktrees = resolve::repo_worktrees_for(dir)?;
+    let canon = dir.canonicalize().unwrap_or_else(|_| dir.to_path_buf());
+    let (_, rel) = resolve::relative_to_worktree(&canon, &worktrees)?;
+    Some((worktrees, rel))
+}
+
+/// `path`'s location relative to `worktrees`, if it belongs to one of them.
+/// Canonicalizes first, since git reports physical (symlink-resolved) paths.
+fn relative_location(path: &Path, worktrees: &[PathBuf]) -> Option<PathBuf> {
+    let canon = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+    resolve::relative_to_worktree(&canon, worktrees).map(|(_, rel)| rel)
+}
+
+/// Find portals whose path is a strict descendant of `dir` (not an exact
+/// match), worktree-aware: a portal in a different worktree of the same
+/// repo as `dir` still counts as being under it.
+fn find_portals_under(config: &Config, dir: &Path) -> std::collections::BTreeMap<String, String> {
+    match worktree_location(dir) {
+        Some((worktrees, cwd_rel)) => config
+            .portals
+            .iter()
+            .filter(|(_, path)| {
+                relative_location(&resolve::expand_tilde(path), &worktrees)
+                    .is_some_and(|rel| rel != cwd_rel && rel.starts_with(&cwd_rel))
+            })
+            .map(|(name, path)| (name.clone(), path.clone()))
+            .collect(),
+        None => config
+            .portals
+            .iter()
+            .filter(|(_, path)| {
+                let expanded = resolve::expand_tilde(path);
+                expanded != dir && expanded.starts_with(dir)
+            })
+            .map(|(name, path)| (name.clone(), path.clone()))
+            .collect(),
+    }
 }
 
 fn cmd_teleport(config: &Config, query: &str, mode: NavMode, claude: bool) {
