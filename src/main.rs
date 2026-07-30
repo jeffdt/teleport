@@ -61,7 +61,7 @@ struct Cli {
     #[arg(short = 'c', long = "claude", conflicts_with_all = ["add", "remove", "list", "edit", "prune"])]
     claude: bool,
 
-    /// Portal name, teleport query, or "." for the current repo's worktree picker
+    /// Portal name, teleport query, "." for the current repo's worktree picker, or a directory to list portals at with -l
     name: Option<String>,
 }
 
