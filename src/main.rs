@@ -2,6 +2,7 @@ mod config;
 mod fzf;
 mod resolve;
 
+use std::path::{Path, PathBuf};
 use std::process;
 
 use clap::Parser;
@@ -20,7 +21,7 @@ struct Cli {
     #[arg(short = 'r', long = "rm", conflicts_with_all = ["add", "list", "edit", "prune", "under"])]
     remove: bool,
 
-    /// List all portals
+    /// List all portals, or with a directory argument (e.g. "."), only those located there
     #[arg(short = 'l', long = "ls", conflicts_with_all = ["add", "remove", "edit", "prune"])]
     list: bool,
 
@@ -36,7 +37,7 @@ struct Cli {
     #[arg(short = 'f', long = "force", requires = "prune")]
     force: bool,
 
-    /// List/pick portals nested under the current directory
+    /// List/pick portals nested under the current directory (worktree-aware)
     #[arg(short = 'u', long = "under", conflicts_with_all = ["add", "remove", "edit", "prune"])]
     under: bool,
 
@@ -60,7 +61,7 @@ struct Cli {
     #[arg(short = 'c', long = "claude", conflicts_with_all = ["add", "remove", "list", "edit", "prune"])]
     claude: bool,
 
-    /// Portal name, teleport query, or "." for the current repo's worktree picker
+    /// Portal name, teleport query, "." for the current repo's worktree picker, or a directory to list portals at with -l
     name: Option<String>,
 }
 
@@ -149,17 +150,86 @@ fn find_matching_portals<'a>(config: &'a Config, query: &str) -> Vec<(&'a String
         .collect()
 }
 
-/// Find portals whose path is a strict descendant of `dir` (not an exact match).
-fn find_portals_under(config: &Config, dir: &std::path::Path) -> std::collections::BTreeMap<String, String> {
-    config
-        .portals
-        .iter()
-        .filter(|(_, path)| {
-            let expanded = resolve::expand_tilde(path);
-            expanded != dir && expanded.starts_with(dir)
-        })
-        .map(|(name, path)| (name.clone(), path.clone()))
-        .collect()
+/// Resolve `dir`'s location within its repo, worktree-aware: the repo's
+/// full worktree list, and `dir`'s path relative to whichever worktree
+/// contains it. `None` if `dir` isn't inside a git repo.
+fn worktree_location(dir: &Path) -> Option<(Vec<PathBuf>, PathBuf)> {
+    let worktrees = resolve::repo_worktrees_for(dir)?;
+    let canon = dir.canonicalize().unwrap_or_else(|_| dir.to_path_buf());
+    let (_, rel) = resolve::relative_to_worktree(&canon, &worktrees)?;
+    Some((worktrees, rel))
+}
+
+/// `path`'s location relative to `worktrees`, if it belongs to one of them.
+/// Canonicalizes first, since git reports physical (symlink-resolved) paths.
+fn relative_location(path: &Path, worktrees: &[PathBuf]) -> Option<PathBuf> {
+    let canon = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+    resolve::relative_to_worktree(&canon, worktrees).map(|(_, rel)| rel)
+}
+
+/// Find portals whose path is a strict descendant of `dir` (not an exact
+/// match), worktree-aware: a portal in a different worktree of the same
+/// repo as `dir` still counts as being under it.
+fn find_portals_under(config: &Config, dir: &Path) -> std::collections::BTreeMap<String, String> {
+    match worktree_location(dir) {
+        Some((worktrees, cwd_rel)) => config
+            .portals
+            .iter()
+            .filter(|(_, path)| {
+                relative_location(&resolve::expand_tilde(path), &worktrees)
+                    .is_some_and(|rel| rel != cwd_rel && rel.starts_with(&cwd_rel))
+            })
+            .map(|(name, path)| (name.clone(), path.clone()))
+            .collect(),
+        None => config
+            .portals
+            .iter()
+            .filter(|(_, path)| {
+                let expanded = resolve::expand_tilde(path);
+                expanded != dir && expanded.starts_with(dir)
+            })
+            .map(|(name, path)| (name.clone(), path.clone()))
+            .collect(),
+    }
+}
+
+/// Find portals located at exactly `dir` (worktree-aware): a portal in a
+/// different worktree of the same repo as `dir`, at the equivalent
+/// relative path, counts as being here too.
+fn find_portals_at(config: &Config, dir: &Path) -> std::collections::BTreeMap<String, String> {
+    match worktree_location(dir) {
+        Some((worktrees, cwd_rel)) => config
+            .portals
+            .iter()
+            .filter(|(_, path)| {
+                relative_location(&resolve::expand_tilde(path), &worktrees)
+                    .is_some_and(|rel| rel == cwd_rel)
+            })
+            .map(|(name, path)| (name.clone(), path.clone()))
+            .collect(),
+        None => config
+            .portals
+            .iter()
+            .filter(|(_, path)| resolve::expand_tilde(path) == *dir)
+            .map(|(name, path)| (name.clone(), path.clone()))
+            .collect(),
+    }
+}
+
+/// Resolve a `-l` location argument to an absolute directory: `.` means the
+/// current directory; anything else is tilde-expanded and, if still
+/// relative, joined onto `cwd`.
+fn resolve_location_arg(cwd: &Path, arg: &str) -> PathBuf {
+    if arg == "." {
+        return cwd.to_path_buf();
+    }
+
+    let expanded = resolve::expand_tilde(arg);
+    if expanded.is_absolute() {
+        expanded
+    } else {
+        cwd.join(expanded)
+    }
 }
 
 fn cmd_teleport(config: &Config, query: &str, mode: NavMode, claude: bool) {
@@ -343,6 +413,20 @@ fn cmd_ls_under(config: &Config, sort_by_path: bool) {
     }
 }
 
+fn cmd_ls_at(config: &Config, dir: &Path, sort_by_path: bool) {
+    let matches = find_portals_at(config, dir);
+
+    if matches.is_empty() {
+        println!("No portals found at {}", resolve::collapse_tilde(dir));
+        return;
+    }
+
+    let entries = fzf::format_portal_entries(&matches, "", sort_by_path);
+    for (display, _) in &entries {
+        println!("{}", display);
+    }
+}
+
 fn main() {
     let cli = Cli::parse();
 
@@ -367,6 +451,10 @@ fn main() {
         cmd_rm(&mut config, cli.name);
     } else if cli.list && cli.under {
         cmd_ls_under(&config, cli.sort_dir);
+    } else if cli.list && cli.name.is_some() {
+        let cwd = resolve::logical_cwd();
+        let dir = resolve_location_arg(&cwd, cli.name.as_deref().unwrap());
+        cmd_ls_at(&config, &dir, cli.sort_dir);
     } else if cli.list {
         cmd_ls(&config, cli.sort_dir);
     } else if cli.under {
@@ -506,6 +594,20 @@ mod tests {
     }
 
     #[test]
+    fn list_with_dot_argument_parses() {
+        let cli = Cli::try_parse_from(["tp-core", "-l", "."]).unwrap();
+        assert!(cli.list);
+        assert_eq!(cli.name.as_deref(), Some("."));
+    }
+
+    #[test]
+    fn list_with_path_argument_parses() {
+        let cli = Cli::try_parse_from(["tp-core", "-l", "~/code/foo"]).unwrap();
+        assert!(cli.list);
+        assert_eq!(cli.name.as_deref(), Some("~/code/foo"));
+    }
+
+    #[test]
     fn init_zsh_outputs_shell_function() {
         let shell_code = include_str!("../shell/tp.zsh");
         assert!(shell_code.contains("tp()"));
@@ -638,5 +740,133 @@ mod tests {
 
         assert_eq!(matches.len(), 1);
         assert!(matches.contains_key("api"));
+    }
+
+    #[test]
+    fn find_portals_at_matches_exact_path() {
+        let mut config = Config::default();
+        config.portals.insert("monorepo".to_string(), "/home/jeff/code/monorepo".to_string());
+
+        let dir = Path::new("/home/jeff/code/monorepo");
+        let matches = find_portals_at(&config, dir);
+
+        assert_eq!(matches.len(), 1);
+        assert!(matches.contains_key("monorepo"));
+    }
+
+    #[test]
+    fn find_portals_at_excludes_strict_subdir() {
+        let mut config = Config::default();
+        config.portals.insert("api".to_string(), "/home/jeff/code/monorepo/services/api".to_string());
+
+        let dir = Path::new("/home/jeff/code/monorepo");
+        let matches = find_portals_at(&config, dir);
+
+        assert!(matches.is_empty());
+    }
+
+    #[test]
+    fn find_portals_at_no_match_for_unrelated_dir() {
+        let mut config = Config::default();
+        config.portals.insert("notes".to_string(), "/home/jeff/Documents/notes".to_string());
+
+        let dir = Path::new("/home/jeff/code/monorepo");
+        let matches = find_portals_at(&config, dir);
+
+        assert!(matches.is_empty());
+    }
+
+    #[test]
+    fn find_portals_at_resolves_tilde_paths() {
+        let mut config = Config::default();
+        config.portals.insert("api".to_string(), "~/code/monorepo".to_string());
+
+        let dir = resolve::expand_tilde("~/code/monorepo");
+        let matches = find_portals_at(&config, &dir);
+
+        assert_eq!(matches.len(), 1);
+        assert!(matches.contains_key("api"));
+    }
+
+    #[test]
+    fn resolve_location_arg_dot_is_cwd() {
+        let cwd = PathBuf::from("/home/jeff/code/monorepo");
+        assert_eq!(resolve_location_arg(&cwd, "."), cwd);
+    }
+
+    #[test]
+    fn resolve_location_arg_absolute_path_passes_through() {
+        let cwd = PathBuf::from("/home/jeff/code/monorepo");
+        let result = resolve_location_arg(&cwd, "/etc/hosts");
+        assert_eq!(result, PathBuf::from("/etc/hosts"));
+    }
+
+    #[test]
+    fn resolve_location_arg_expands_tilde() {
+        let cwd = PathBuf::from("/home/jeff/code/monorepo");
+        let result = resolve_location_arg(&cwd, "~/Documents/notes");
+        assert_eq!(result, resolve::expand_tilde("~/Documents/notes"));
+    }
+
+    #[test]
+    fn resolve_location_arg_joins_relative_onto_cwd() {
+        let cwd = PathBuf::from("/home/jeff/code/monorepo");
+        let result = resolve_location_arg(&cwd, "services/api");
+        assert_eq!(result, PathBuf::from("/home/jeff/code/monorepo/services/api"));
+    }
+
+    fn git_test(repo: &std::path::Path, args: &[&str]) {
+        let status = std::process::Command::new("git")
+            .args(["-c", "user.name=tp test"])
+            .args(["-c", "user.email=test@example.com"])
+            .args(["-c", "commit.gpgsign=false"])
+            .args(["-c", "init.defaultBranch=main"])
+            .args(["-C", repo.to_str().unwrap()])
+            .args(args)
+            .status()
+            .expect("git must be installed to run this test");
+        assert!(status.success(), "git {:?} failed", args);
+    }
+
+    #[test]
+    fn find_portals_under_and_at_cross_worktree_boundary() {
+        let scratch = tempfile::tempdir().unwrap();
+        let repo = scratch.path().join("repo");
+        std::fs::create_dir(&repo).unwrap();
+
+        git_test(&repo, &["init", "-q"]);
+        std::fs::write(repo.join("README.md"), "hello\n").unwrap();
+        git_test(&repo, &["add", "-A"]);
+        git_test(&repo, &["commit", "-q", "-m", "initial"]);
+
+        let feature_worktree = scratch.path().join("repo.feature");
+        git_test(
+            &repo,
+            &["worktree", "add", "-q", "-b", "feature", feature_worktree.to_str().unwrap()],
+        );
+
+        // The portal points at a subdirectory created after the initial commit, so it
+        // only exists in the main worktree's checkout -- create the equivalent
+        // directory in the feature worktree too, since that's what a real repo with
+        // this file on its branch would look like.
+        let services_dir = repo.join("services").join("api");
+        std::fs::create_dir_all(&services_dir).unwrap();
+        let feature_services_dir = feature_worktree.join("services").join("api");
+        std::fs::create_dir_all(&feature_services_dir).unwrap();
+
+        let mut config = Config::default();
+        config.portals.insert("api".to_string(), services_dir.display().to_string());
+
+        let under = find_portals_under(&config, &feature_worktree);
+        assert!(
+            under.contains_key("api"),
+            "portal filed against the main worktree should be found under a sibling worktree"
+        );
+
+        let at = find_portals_at(&config, &feature_services_dir);
+        assert!(
+            at.contains_key("api"),
+            "portal filed against the main worktree should be found at the equivalent path in a sibling worktree"
+        );
     }
 }

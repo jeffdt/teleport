@@ -57,7 +57,8 @@ tp -u               # pick a portal nested under the current directory
 tp -a [name]        # add a portal for the current directory (auto-named if omitted)
 tp -r [name]        # remove a portal (defaults to the one for the current directory)
 tp -l               # list all portals
-tp -l -u            # list portals nested under the current directory
+tp -l -u            # list portals nested under the current directory (worktree-aware)
+tp -l .             # list portals pointing at exactly the current directory (worktree-aware)
 tp -e               # open config in $EDITOR
 ```
 
