@@ -739,4 +739,59 @@ mod tests {
         assert_eq!(matches.len(), 1);
         assert!(matches.contains_key("api"));
     }
+
+    fn git_test(repo: &std::path::Path, args: &[&str]) {
+        let status = std::process::Command::new("git")
+            .args(["-c", "user.name=tp test"])
+            .args(["-c", "user.email=test@example.com"])
+            .args(["-c", "commit.gpgsign=false"])
+            .args(["-c", "init.defaultBranch=main"])
+            .args(["-C", repo.to_str().unwrap()])
+            .args(args)
+            .status()
+            .expect("git must be installed to run this test");
+        assert!(status.success(), "git {:?} failed", args);
+    }
+
+    #[test]
+    fn find_portals_under_and_at_cross_worktree_boundary() {
+        let scratch = tempfile::tempdir().unwrap();
+        let repo = scratch.path().join("repo");
+        std::fs::create_dir(&repo).unwrap();
+
+        git_test(&repo, &["init", "-q"]);
+        std::fs::write(repo.join("README.md"), "hello\n").unwrap();
+        git_test(&repo, &["add", "-A"]);
+        git_test(&repo, &["commit", "-q", "-m", "initial"]);
+
+        let feature_worktree = scratch.path().join("repo.feature");
+        git_test(
+            &repo,
+            &["worktree", "add", "-q", "-b", "feature", feature_worktree.to_str().unwrap()],
+        );
+
+        // The portal points at a subdirectory created after the initial commit, so it
+        // only exists in the main worktree's checkout -- create the equivalent
+        // directory in the feature worktree too, since that's what a real repo with
+        // this file on its branch would look like.
+        let services_dir = repo.join("services").join("api");
+        std::fs::create_dir_all(&services_dir).unwrap();
+        let feature_services_dir = feature_worktree.join("services").join("api");
+        std::fs::create_dir_all(&feature_services_dir).unwrap();
+
+        let mut config = Config::default();
+        config.portals.insert("api".to_string(), services_dir.display().to_string());
+
+        let under = find_portals_under(&config, &feature_worktree);
+        assert!(
+            under.contains_key("api"),
+            "portal filed against the main worktree should be found under a sibling worktree"
+        );
+
+        let at = find_portals_at(&config, &feature_services_dir);
+        assert!(
+            at.contains_key("api"),
+            "portal filed against the main worktree should be found at the equivalent path in a sibling worktree"
+        );
+    }
 }
