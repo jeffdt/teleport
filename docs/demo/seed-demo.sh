@@ -82,11 +82,11 @@ EOF
 # has two corpses to find. Two rather than one so the swept output reads as
 # plural.
 #
-# They sit under ~/archive rather than ~/code on purpose. `-u` is a pure path
-# prefix match with no existence check (src/main.rs), so broken portals under
-# ~/code would pass the filter and `tp -l -u` would return five rows instead
-# of the three under-cwd.tape is built around. ~/archive itself is never
-# created either; only the paths' prefix matters here.
+# They sit under ~/archive rather than ~/code on purpose. `-u` has no
+# existence check (src/main.rs), so broken portals under ~/code would pass
+# the filter and `tp -l -u` would return five rows instead of the three
+# under-cwd.tape is built around. ~/archive itself is never created either;
+# only the location match matters here.
 
 # The tapes run `zsh -f` (no rc files, so a themed prompt cannot fight
 # `Set Theme`), which means the prompt must be set explicitly. It is written
