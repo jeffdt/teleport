@@ -21,7 +21,7 @@ struct Cli {
     #[arg(short = 'r', long = "rm", conflicts_with_all = ["add", "list", "edit", "prune", "under"])]
     remove: bool,
 
-    /// List all portals
+    /// List all portals, or with a directory argument (e.g. "."), only those located there
     #[arg(short = 'l', long = "ls", conflicts_with_all = ["add", "remove", "edit", "prune"])]
     list: bool,
 
@@ -413,6 +413,20 @@ fn cmd_ls_under(config: &Config, sort_by_path: bool) {
     }
 }
 
+fn cmd_ls_at(config: &Config, dir: &Path, sort_by_path: bool) {
+    let matches = find_portals_at(config, dir);
+
+    if matches.is_empty() {
+        println!("No portals found at {}", resolve::collapse_tilde(dir));
+        return;
+    }
+
+    let entries = fzf::format_portal_entries(&matches, "", sort_by_path);
+    for (display, _) in &entries {
+        println!("{}", display);
+    }
+}
+
 fn main() {
     let cli = Cli::parse();
 
@@ -437,6 +451,10 @@ fn main() {
         cmd_rm(&mut config, cli.name);
     } else if cli.list && cli.under {
         cmd_ls_under(&config, cli.sort_dir);
+    } else if cli.list && cli.name.is_some() {
+        let cwd = resolve::logical_cwd();
+        let dir = resolve_location_arg(&cwd, cli.name.as_deref().unwrap());
+        cmd_ls_at(&config, &dir, cli.sort_dir);
     } else if cli.list {
         cmd_ls(&config, cli.sort_dir);
     } else if cli.under {
@@ -573,6 +591,20 @@ mod tests {
         assert!(cli.list);
         assert!(cli.under);
         assert!(cli.sort_dir);
+    }
+
+    #[test]
+    fn list_with_dot_argument_parses() {
+        let cli = Cli::try_parse_from(["tp-core", "-l", "."]).unwrap();
+        assert!(cli.list);
+        assert_eq!(cli.name.as_deref(), Some("."));
+    }
+
+    #[test]
+    fn list_with_path_argument_parses() {
+        let cli = Cli::try_parse_from(["tp-core", "-l", "~/code/foo"]).unwrap();
+        assert!(cli.list);
+        assert_eq!(cli.name.as_deref(), Some("~/code/foo"));
     }
 
     #[test]
