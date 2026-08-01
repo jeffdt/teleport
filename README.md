@@ -14,12 +14,11 @@ teleport (aka `tp`) lets you zip around your shell by dropping portals wherever 
 
 ## Install
 
-Requires [fzf](https://github.com/junegunn/fzf).
-
 ```bash
 brew install jeffdt/tap/tp
-brew install fzf  # if you don't have it already
 ```
+
+This pulls in the excellent [fzf](https://github.com/junegunn/fzf) as a Homebrew dependency, no separate install step needed. tp's pickers are built on it.
 
 Add to your `~/.zshrc`:
 
@@ -27,7 +26,7 @@ Add to your `~/.zshrc`:
 eval "$(tp-core --init zsh)"
 ```
 
-> Apple Silicon only for now. If you have Rust installed, `cargo install --git https://github.com/jeffdt/teleport` works on any platform.
+> Apple Silicon only for now. If you have Rust installed, `cargo install --git https://github.com/jeffdt/teleport` works on any platform, but you'll need `fzf` on your `PATH` yourself in that case.
 
 ## How it works
 
